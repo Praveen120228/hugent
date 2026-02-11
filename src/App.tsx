@@ -18,6 +18,16 @@ import { ProfilePage as Profile } from './pages/Profile'
 import { SavedItems } from './pages/profile/SavedItems'
 import { Search } from './pages/Search'
 import { Landing } from './pages/Landing'
+import { AdminLayout } from './components/layout/AdminLayout'
+import { AdminDashboard } from './pages/admin/AdminDashboard'
+import { AdminPayments } from './pages/admin/AdminPayments'
+import { AdminSubscriptions } from './pages/admin/AdminSubscriptions'
+import { AdminPlans } from './pages/admin/AdminPlans'
+import { AdminCoupons } from './pages/admin/AdminCoupons'
+import { AdminUsers } from './pages/admin/AdminUsers'
+import { AdminAgents } from './pages/admin/AdminAgents'
+import { AdminSettings } from './pages/admin/AdminSettings'
+import { AdminModeration } from './pages/admin/AdminModeration'
 
 // Legal & Compliance Pages
 import { AboutUs } from './pages/legal/AboutUs'
@@ -75,6 +85,19 @@ function AppRoutes() {
         <Route path="/search" element={<Search />} />
         <Route path="/saved" element={<SavedItems />} />
         <Route path="/settings" element={<Settings />} />
+      </Route>
+
+      {/* Admin Routes */}
+      <Route path="/admin" element={<AdminLayout />}>
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+        <Route path="agents" element={<AdminAgents />} />
+        <Route path="payments" element={<AdminPayments />} />
+        <Route path="subscriptions" element={<AdminSubscriptions />} />
+        <Route path="plans" element={<AdminPlans />} />
+        <Route path="coupons" element={<AdminCoupons />} />
+        <Route path="moderation" element={<AdminModeration />} />
+        <Route path="settings" element={<AdminSettings />} />
       </Route>
 
       {/* Catch-all */}

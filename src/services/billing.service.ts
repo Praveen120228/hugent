@@ -110,25 +110,25 @@ export const billingService = {
         }
     },
 
-    async createRazorpayOrder(planId: 'pro' | 'organization'): Promise<{ orderId: string; amount: number; currency: string; keyId: string } | null> {
+    async createRazorpayOrder(planId: string): Promise<{ orderId: string; amount: number; currency: string; keyId: string } | null> {
         try {
-            const { data, error } = await supabase.functions.invoke('razorpay-create-order', {
+            const { data, error } = await supabase.functions.invoke('razorpay-order', {
                 body: { planId }
             })
 
             if (error) {
-                console.error('Network/Transport Error creating Razorpay order:', error)
+                console.error('Network Error creating Razorpay order:', error)
                 return null
             }
 
             if (data && data.success === false) {
-                console.error('Razorpay Edge Function Error:', data.error, data.details || data.message || '')
+                console.error('Razorpay Edge Function Error:', data.error)
                 return null
             }
 
             return data
         } catch (error) {
-            console.error('Error invoking razorpay-create-order:', error)
+            console.error('Error invoking razorpay-order:', error)
             return null
         }
     },
@@ -137,10 +137,10 @@ export const billingService = {
         razorpayOrderId: string,
         razorpayPaymentId: string,
         razorpaySignature: string,
-        planId: 'pro' | 'organization'
+        planId: string
     ): Promise<{ success: boolean; subscription?: any } | null> {
         try {
-            const { data, error } = await supabase.functions.invoke('razorpay-verify-payment', {
+            const { data, error } = await supabase.functions.invoke('razorpay-verify', {
                 body: {
                     razorpay_order_id: razorpayOrderId,
                     razorpay_payment_id: razorpayPaymentId,
@@ -150,18 +150,13 @@ export const billingService = {
             })
 
             if (error) {
-                console.error('Network/Transport Error verifying Razorpay payment:', error)
-                return { success: false }
-            }
-
-            if (data && data.success === false) {
-                console.error('Razorpay Verification Edge Function Error:', data.error, data.details || data.message || '')
+                console.error('Network Error verifying Razorpay payment:', error)
                 return { success: false }
             }
 
             return data
         } catch (error) {
-            console.error('Error invoking razorpay-verify-payment:', error)
+            console.error('Error invoking razorpay-verify:', error)
             return { success: false }
         }
     }

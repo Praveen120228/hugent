@@ -67,10 +67,6 @@ export const BillingSettings: React.FC = () => {
     ]
 
 
-    const handleBuyCredits = async () => {
-        toast.info('Payment gateway integration is currently being updated. Credit purchases will be available shortly.')
-    }
-
     const loadRazorpayScript = () => {
         return new Promise((resolve) => {
             const script = document.createElement('script')
@@ -81,86 +77,117 @@ export const BillingSettings: React.FC = () => {
         })
     }
 
-    const handleUpgrade = async (planId: 'pro' | 'organization') => {
+    const handleBuyCredits = async () => {
         if (!user) return
-
+        setLoading(true)
         try {
-            // Load Razorpay script
             const scriptLoaded = await loadRazorpayScript()
             if (!scriptLoaded) {
                 toast.error('Failed to load payment gateway')
                 return
             }
 
-            // Create order
-            const orderData = await billingService.createRazorpayOrder(planId)
+            const orderData = await billingService.createRazorpayOrder('credits_500')
             if (!orderData) {
-                toast.error('Failed to create payment order')
+                toast.error('Failed to create credit order')
                 return
             }
 
-            const plan = plans.find(p => p.id === planId)
-
-            // Configure Razorpay options
             const options = {
-                key: orderData.keyId,
+                key: orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
                 amount: orderData.amount,
                 currency: orderData.currency,
                 name: 'HuGents',
-                description: `Subscription: ${plan?.name}`,
+                description: 'Purchase 500 Orchestration Credits',
                 order_id: orderData.orderId,
                 prefill: {
                     name: user.email?.split('@')[0] || 'User',
                     email: user.email || ''
                 },
-                theme: {
-                    color: '#6366f1'
-                },
+                theme: { color: '#10b981' },
                 handler: async function (response: any) {
-                    try {
-                        // Verify payment
-                        const result = await billingService.verifyRazorpayPayment(
-                            response.razorpay_order_id,
-                            response.razorpay_payment_id,
-                            response.razorpay_signature,
-                            planId
-                        )
-
-                        if (result?.success) {
-                            toast.success(`Successfully upgraded to ${plan?.name}!`)
-                            // Reload subscription data
-                            const newSub = await billingService.getUserSubscription(user.id)
-                            setSubscription(newSub)
-                            const newTxs = await billingService.getTransactionHistory(user.id)
-                            setTransactions(newTxs)
-                        } else {
-                            toast.error('Payment verification failed')
-                        }
-                    } catch (error) {
-                        console.error('Payment verification error:', error)
-                        toast.error('Failed to verify payment')
-                    }
-                },
-                modal: {
-                    ondismiss: function () {
-                        toast.info('Payment cancelled')
+                    const result = await billingService.verifyRazorpayPayment(
+                        response.razorpay_order_id,
+                        response.razorpay_payment_id,
+                        response.razorpay_signature,
+                        'credits_500'
+                    )
+                    if (result?.success) {
+                        toast.success('Credits added successfully!')
+                        const newCreds = await billingService.getCreditBalance(user.id)
+                        setCredits(newCreds)
+                    } else {
+                        toast.error('Payment verification failed')
                     }
                 }
             }
 
             // @ts-ignore
             const rzp = new window.Razorpay(options)
+            rzp.open()
+        } catch (error) {
+            console.error('Credit purchase error:', error)
+            toast.error('Payment failed')
+        } finally {
+            setLoading(false)
+        }
+    }
 
-            rzp.on('payment.failed', function (response: any) {
-                console.error('Razorpay payment failed event:', response.error)
-                toast.error(`Payment Failed: ${response.error.description || 'Unknown error'}`)
-            })
+    const handleUpgrade = async (planId: string) => {
+        if (!user) return
+        setLoading(true)
+        try {
+            const scriptLoaded = await loadRazorpayScript()
+            if (!scriptLoaded) {
+                toast.error('Failed to load payment gateway')
+                return
+            }
 
-            console.log('Opening Razorpay with options:', options)
+            const orderData = await billingService.createRazorpayOrder(planId)
+            if (!orderData) {
+                toast.error('Failed to initiate upgrade')
+                return
+            }
+
+            const plan = plans.find(p => p.id === planId)
+
+            const options = {
+                key: orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: 'HuGents',
+                description: `Upgrade to ${plan?.name}`,
+                order_id: orderData.orderId,
+                prefill: {
+                    name: user.email?.split('@')[0] || 'User',
+                    email: user.email || ''
+                },
+                theme: { color: '#6366f1' },
+                handler: async function (response: any) {
+                    const result = await billingService.verifyRazorpayPayment(
+                        response.razorpay_order_id,
+                        response.razorpay_payment_id,
+                        response.razorpay_signature,
+                        planId
+                    )
+                    if (result?.success) {
+                        toast.success(`Welcome to ${plan?.name}!`)
+                        const newSub = await billingService.getUserSubscription(user.id)
+                        setSubscription(newSub)
+                    } else {
+                        toast.error('Upgrade verification failed')
+                    }
+                }
+            }
+
+            // @ts-ignore
+            const rzp = new window.Razorpay(options)
             rzp.open()
         } catch (error) {
             console.error('Upgrade error:', error)
-            toast.error('Failed to initiate payment')
+            toast.error('Upgrade failed')
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -240,7 +267,7 @@ export const BillingSettings: React.FC = () => {
                                     variant={isActive ? 'ghost' : 'outline'}
                                     className="w-full rounded-xl font-bold group"
                                     disabled={isActive || plan.id === 'starter'}
-                                    onClick={() => !isActive && plan.id !== 'starter' && handleUpgrade(plan.id as 'pro' | 'organization')}
+                                    onClick={() => !isActive && plan.id !== 'starter' && handleUpgrade(plan.id)}
                                 >
                                     {isActive ? 'Current Plan' : 'Upgrade'}
                                     {!isActive && <ArrowUpRight className="ml-2 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}

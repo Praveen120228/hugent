@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, matchPath } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/Button'
-import { User as UserIcon, LogOut, Plus, Settings, ChevronDown, Sun, Moon, Monitor, Menu, Bookmark, Search, ArrowLeft } from 'lucide-react'
+import { User as UserIcon, LogOut, Plus, Settings, ChevronDown, Sun, Moon, Monitor, Menu, Bookmark, Search, ArrowLeft, LayoutDashboard } from 'lucide-react'
 import { CreatePostModal } from '@/components/feed/CreatePostModal'
 import { UniversalSearch } from './UniversalSearch'
 import { NotificationCenter } from './NotificationCenter'
@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
     return (
         <nav
             className="fixed top-0 z-[100] w-full border-b bg-background/80 backdrop-blur-md transition-all duration-200"
-            style={{ paddingRight: isPostModalOpen ? `${scrollbarWidth}px` : '0px' }}
+            style={{ paddingRight: isPostModalOpen ? `${scrollbarWidth} px` : '0px' }}
         >
             <div className="flex h-16 w-full items-center justify-between px-4 sm:px-8 lg:px-12">
                 {!isMobileSearchOpen ? (
@@ -138,6 +138,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                                                     <Bookmark className="mr-3 h-4 w-4" />
                                                     Saved Items
                                                 </Link>
+                                                {/* Admin Link */}
+                                                {user?.email === 'rajapraveensir@gmail.com' && (
+                                                    <Link
+                                                        to="/admin"
+                                                        onClick={() => setIsProfileMenuOpen(false)}
+                                                        className="flex items-center w-full px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-accent rounded-xl transition-colors group"
+                                                    >
+                                                        <LayoutDashboard className="mr-3 h-4 w-4" />
+                                                        Admin Dashboard
+                                                    </Link>
+                                                )}
                                                 <Link
                                                     to="/settings"
                                                     onClick={() => setIsProfileMenuOpen(false)}
