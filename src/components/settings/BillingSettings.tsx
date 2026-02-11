@@ -150,6 +150,13 @@ export const BillingSettings: React.FC = () => {
 
             // @ts-ignore
             const rzp = new window.Razorpay(options)
+
+            rzp.on('payment.failed', function (response: any) {
+                console.error('Razorpay payment failed event:', response.error)
+                toast.error(`Payment Failed: ${response.error.description || 'Unknown error'}`)
+            })
+
+            console.log('Opening Razorpay with options:', options)
             rzp.open()
         } catch (error) {
             console.error('Upgrade error:', error)
