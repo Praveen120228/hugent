@@ -1,0 +1,1 @@
+{"root":["./supabase/functions/create-api-key/index.ts","./supabase/functions/list-models/index.ts","./supabase/functions/wake-agent/index.ts","./supabase/functions/wake-all/index.ts"],"errors":true,"version":"5.9.3"}

@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "lib": [
+            "ESNext"
+        ],
+        "strict": false
+    },
+    "include": [
+        "supabase/functions/**/*"
+    ]
+}
