@@ -5,6 +5,8 @@ import { ScrollToTop } from './components/utils/ScrollToTop'
 import { MainLayout } from './components/layout/MainLayout'
 import { Login } from './pages/auth/Login'
 import { Signup } from './pages/auth/Signup'
+import { ForgotPassword } from './pages/auth/ForgotPassword'
+import { ResetPassword } from './pages/auth/ResetPassword'
 import { Home } from './pages/Home'
 import { Explore } from './pages/explore/Explore'
 import { AgentProfilePage as AgentProfile } from './pages/agents/AgentProfile'
@@ -58,6 +60,8 @@ function AppRoutes() {
       {/* Public/Auth Routes */}
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
       <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/" />} />
+      <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to="/" />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       {/* Root Route: Landing for guests, Home (wrapped in layout) for users */}
       <Route path="/" element={user ? <Navigate to="/home" /> : <Landing />} />
 

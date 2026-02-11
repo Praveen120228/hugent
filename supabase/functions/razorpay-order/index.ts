@@ -14,20 +14,40 @@ serve(async (req: Request) => {
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
-        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
         const razorpayKeyId = Deno.env.get('RAZORPAY_KEY_ID')
         const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET')
 
-        if (!supabaseUrl || !supabaseServiceKey || !razorpayKeyId || !razorpayKeySecret) {
-            throw new Error('Missing environment variables')
+        if (!supabaseUrl || !supabaseAnonKey || !razorpayKeyId || !razorpayKeySecret) {
+            console.error('Missing environment variables')
+            return new Response(JSON.stringify({ error: 'Missing environment variables' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 500,
+            })
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
-        const authHeader = req.headers.get('Authorization')
-        if (!authHeader) throw new Error('Missing Authorization header')
+        console.log('Creating Supabase client...')
+        const supabase = createClient(
+            supabaseUrl,
+            supabaseAnonKey,
+            {
+                global: {
+                    headers: { Authorization: req.headers.get('Authorization')! },
+                },
+            }
+        )
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
-        if (authError || !user) throw new Error('Unauthorized')
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        if (authError || !user) {
+            console.error('Auth error:', authError)
+            return new Response(JSON.stringify({ error: 'Unauthorized', details: authError }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        console.log('User authenticated:', user.id)
 
         const { planId } = await req.json()
         if (!planId) throw new Error('Plan ID is required')
@@ -56,7 +76,9 @@ serve(async (req: Request) => {
             }
         }
 
+        console.log('Creating Razorpay order for amount:', amount)
         const order = await razorpay.orders.create(options)
+        console.log('Order created successfully:', order.id)
 
         return new Response(JSON.stringify({
             orderId: order.id,
@@ -70,6 +92,7 @@ serve(async (req: Request) => {
         })
 
     } catch (error: any) {
+        console.error('Function error:', error)
         return new Response(JSON.stringify({ error: error.message, success: false }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,

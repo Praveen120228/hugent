@@ -15,19 +15,40 @@ serve(async (req: Request) => {
 
     try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
+        const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
         const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
         const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET')
 
-        if (!supabaseUrl || !supabaseServiceKey || !razorpayKeySecret) {
-            throw new Error('Missing environment variables')
+        if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey || !razorpayKeySecret) {
+            console.error('Missing environment variables')
+            return new Response(JSON.stringify({ error: 'Missing environment variables' }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 500,
+            })
         }
 
-        const supabase = createClient(supabaseUrl, supabaseServiceKey)
-        const authHeader = req.headers.get('Authorization')
-        if (!authHeader) throw new Error('Missing Authorization header')
+        console.log('Creating Supabase client...')
+        const supabase = createClient(
+            supabaseUrl,
+            supabaseAnonKey,
+            {
+                global: {
+                    headers: { Authorization: req.headers.get('Authorization')! },
+                },
+            }
+        )
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''))
-        if (authError || !user) throw new Error('Unauthorized')
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+        if (authError || !user) {
+            console.error('Auth error:', authError)
+            return new Response(JSON.stringify({ error: 'Unauthorized', details: authError }), {
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                status: 401,
+            })
+        }
+
+        console.log('User authenticated:', user.id)
 
         const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planId } = await req.json()
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !planId) {
@@ -35,6 +56,7 @@ serve(async (req: Request) => {
         }
 
         // Verify Signature
+        console.log('Verifying Razorpay signature...')
         const body = razorpay_order_id + "|" + razorpay_payment_id
         const key = new TextEncoder().encode(razorpayKeySecret)
         const data = new TextEncoder().encode(body)
@@ -43,23 +65,31 @@ serve(async (req: Request) => {
         const expectedSignature = new TextDecoder().decode(encode(new Uint8Array(signatureBuffer)))
 
         if (expectedSignature !== razorpay_signature) {
+            console.error('Invalid signature')
             throw new Error('Invalid signature')
         }
 
-        // Signature valid, update database
+        console.log('Signature valid, updating database...')
+
+        // Use service role for database updates to bypass RLS if needed, or stick to user client if possible
+        const adminClient = createClient(supabaseUrl, supabaseServiceKey)
+
         if (planId === 'credits_500') {
             // Add credits
-            const { error: profileError } = await supabase.rpc('add_user_credits', {
+            const { error: profileError } = await adminClient.rpc('add_user_credits', {
                 p_user_id: user.id,
                 p_amount: 500
             })
-            if (profileError) throw profileError
+            if (profileError) {
+                console.error('Profile error:', profileError)
+                throw profileError
+            }
         } else {
             // Update subscription
             const periodEnd = new Date()
             periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-            const { error: subError } = await supabase
+            const { error: subError } = await adminClient
                 .from('subscriptions')
                 .upsert({
                     user_id: user.id,
@@ -67,7 +97,10 @@ serve(async (req: Request) => {
                     status: 'active',
                     current_period_end: periodEnd.toISOString()
                 })
-            if (subError) throw subError
+            if (subError) {
+                console.error('Subscription error:', subError)
+                throw subError
+            }
         }
 
         // Record Transaction
@@ -76,7 +109,7 @@ serve(async (req: Request) => {
         else if (planId === 'organization') amount = 4999
         else if (planId === 'credits_500') amount = 500
 
-        const { error: txError } = await supabase
+        const { error: txError } = await adminClient
             .from('transactions')
             .insert({
                 user_id: user.id,
@@ -88,14 +121,19 @@ serve(async (req: Request) => {
                 razorpay_order_id,
                 razorpay_payment_id
             })
-        if (txError) throw txError
+        if (txError) {
+            console.error('Transaction error:', txError)
+            throw txError
+        }
 
+        console.log('Payment processed successfully')
         return new Response(JSON.stringify({ success: true }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 200,
         })
 
     } catch (error: any) {
+        console.error('Function error:', error)
         return new Response(JSON.stringify({ error: error.message, success: false }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,
