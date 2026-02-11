@@ -94,5 +94,65 @@ export const billingService = {
                     customLlm: false
                 }
         }
+    },
+
+    // Plan pricing in paise (1 rupee = 100 paise)
+    PLAN_PRICING: {
+        pro: {
+            amount: 49900, // ₹499
+            name: 'Pro Plan',
+            period: 'month'
+        },
+        organization: {
+            amount: 299900, // ₹2999
+            name: 'Enterprise Plan',
+            period: 'month'
+        }
+    },
+
+    async createRazorpayOrder(planId: 'pro' | 'organization'): Promise<{ orderId: string; amount: number; currency: string; keyId: string } | null> {
+        try {
+            const { data, error } = await supabase.functions.invoke('razorpay-create-order', {
+                body: { planId }
+            })
+
+            if (error) {
+                console.error('Error creating Razorpay order:', error)
+                return null
+            }
+
+            return data
+        } catch (error) {
+            console.error('Error invoking razorpay-create-order:', error)
+            return null
+        }
+    },
+
+    async verifyRazorpayPayment(
+        razorpayOrderId: string,
+        razorpayPaymentId: string,
+        razorpaySignature: string,
+        planId: 'pro' | 'organization'
+    ): Promise<{ success: boolean; subscription?: any } | null> {
+        try {
+            const { data, error } = await supabase.functions.invoke('razorpay-verify-payment', {
+                body: {
+                    razorpay_order_id: razorpayOrderId,
+                    razorpay_payment_id: razorpayPaymentId,
+                    razorpay_signature: razorpaySignature,
+                    planId
+                }
+            })
+
+            if (error) {
+                console.error('Error verifying Razorpay payment:', error)
+                return null
+            }
+
+            return data
+        } catch (error) {
+            console.error('Error invoking razorpay-verify-payment:', error)
+            return null
+        }
     }
 }

@@ -71,6 +71,92 @@ export const BillingSettings: React.FC = () => {
         toast.info('Payment gateway integration is currently being updated. Credit purchases will be available shortly.')
     }
 
+    const loadRazorpayScript = () => {
+        return new Promise((resolve) => {
+            const script = document.createElement('script')
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+            script.onload = () => resolve(true)
+            script.onerror = () => resolve(false)
+            document.body.appendChild(script)
+        })
+    }
+
+    const handleUpgrade = async (planId: 'pro' | 'organization') => {
+        if (!user) return
+
+        try {
+            // Load Razorpay script
+            const scriptLoaded = await loadRazorpayScript()
+            if (!scriptLoaded) {
+                toast.error('Failed to load payment gateway')
+                return
+            }
+
+            // Create order
+            const orderData = await billingService.createRazorpayOrder(planId)
+            if (!orderData) {
+                toast.error('Failed to create payment order')
+                return
+            }
+
+            const plan = plans.find(p => p.id === planId)
+
+            // Configure Razorpay options
+            const options = {
+                key: orderData.keyId,
+                amount: orderData.amount,
+                currency: orderData.currency,
+                name: 'HuGents',
+                description: `Subscription: ${plan?.name}`,
+                order_id: orderData.orderId,
+                prefill: {
+                    name: user.email?.split('@')[0] || 'User',
+                    email: user.email || ''
+                },
+                theme: {
+                    color: '#6366f1'
+                },
+                handler: async function (response: any) {
+                    try {
+                        // Verify payment
+                        const result = await billingService.verifyRazorpayPayment(
+                            response.razorpay_order_id,
+                            response.razorpay_payment_id,
+                            response.razorpay_signature,
+                            planId
+                        )
+
+                        if (result?.success) {
+                            toast.success(`Successfully upgraded to ${plan?.name}!`)
+                            // Reload subscription data
+                            const newSub = await billingService.getUserSubscription(user.id)
+                            setSubscription(newSub)
+                            const newTxs = await billingService.getTransactionHistory(user.id)
+                            setTransactions(newTxs)
+                        } else {
+                            toast.error('Payment verification failed')
+                        }
+                    } catch (error) {
+                        console.error('Payment verification error:', error)
+                        toast.error('Failed to verify payment')
+                    }
+                },
+                modal: {
+                    ondismiss: function () {
+                        toast.info('Payment cancelled')
+                    }
+                }
+            }
+
+            // @ts-ignore
+            const rzp = new window.Razorpay(options)
+            rzp.open()
+        } catch (error) {
+            console.error('Upgrade error:', error)
+            toast.error('Failed to initiate payment')
+        }
+    }
+
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center">
@@ -146,8 +232,8 @@ export const BillingSettings: React.FC = () => {
                                 <Button
                                     variant={isActive ? 'ghost' : 'outline'}
                                     className="w-full rounded-xl font-bold group"
-                                    disabled={isActive}
-                                    onClick={() => !isActive && toast.info(`Upgrading to ${plan.name} will be enabled once the payment gateway is verified.`)}
+                                    disabled={isActive || plan.id === 'starter'}
+                                    onClick={() => !isActive && plan.id !== 'starter' && handleUpgrade(plan.id as 'pro' | 'organization')}
                                 >
                                     {isActive ? 'Current Plan' : 'Upgrade'}
                                     {!isActive && <ArrowUpRight className="ml-2 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
