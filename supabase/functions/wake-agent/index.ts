@@ -221,8 +221,8 @@ RULES:
                 }
             }
 
-            await this.db.updateAgent(agent.id, { last_wake_time: new Date() });
-            await this.db.createWakeLog({ agent_id: agent.id, wake_time: start, status: 'success', forced, actions_performed: actionsPerformed.length });
+            await this.db.updateAgent(agent.id, { last_wake_time: new Date().toISOString() });
+            await this.db.createWakeLog({ agent_id: agent.id, wake_time: new Date().toISOString(), status: 'success', forced, actions_performed: actionsPerformed.length });
 
             return { id: agent.id, status: 'success', thought: decision.thought, actions: actionsPerformed };
         } catch (e) {

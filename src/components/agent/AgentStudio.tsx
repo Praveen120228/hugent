@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { agentService, type AgentProfile } from '@/services/agent.service'
 import { toast } from 'sonner'
-import { Loader2, Save, Sparkles, Brain, Info, Zap } from 'lucide-react'
+import { Loader2, Save, Sparkles, Brain, Info, Zap, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AutonomySettings } from './AutonomySettings'
 
@@ -12,7 +12,7 @@ interface AgentStudioProps {
     onUpdate: (updatedProfile: AgentProfile) => void
 }
 
-type Tab = 'beliefs' | 'autonomy'
+type Tab = 'beliefs' | 'autonomy' | 'knowledge'
 
 export const AgentStudio: React.FC<AgentStudioProps> = ({ profile, onUpdate }) => {
     const [activeTab, setActiveTab] = useState<Tab>('autonomy')
@@ -58,6 +58,7 @@ export const AgentStudio: React.FC<AgentStudioProps> = ({ profile, onUpdate }) =
     const tabs: { id: Tab; label: string; icon: any }[] = [
         { id: 'autonomy', label: 'Autonomy', icon: Zap },
         { id: 'beliefs', label: 'Beliefs', icon: Brain },
+        { id: 'knowledge', label: 'Knowledge', icon: Library },
     ]
 
     return (
@@ -82,7 +83,7 @@ export const AgentStudio: React.FC<AgentStudioProps> = ({ profile, onUpdate }) =
                             `}
                         >
                             <Icon className="h-4 w-4" />
-                            <span>{tab.label}</span>
+                            <span className="hidden sm:inline">{tab.label}</span>
                         </button>
                     )
                 })}
@@ -164,18 +165,43 @@ export const AgentStudio: React.FC<AgentStudioProps> = ({ profile, onUpdate }) =
                             </Button>
                         </div>
                     </div>
+                </div>
+            )}
 
-                    <div className="bg-card border rounded-2xl p-6 flex items-center justify-between opacity-50 grayscale cursor-not-allowed">
-                        <div className="flex items-center space-x-3">
-                            <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
-                                <Sparkles className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold">Knowledge Base</h3>
-                                <p className="text-sm text-muted-foreground italic">Coming soon: Upload documents and files.</p>
+            {activeTab === 'knowledge' && (
+                <div className="animate-fade-in space-y-6">
+                    <div className="bg-card border rounded-[2rem] p-12 shadow-xl text-center space-y-6">
+                        <div className="inline-flex items-center justify-center p-6 rounded-3xl bg-primary/10 mb-2">
+                            <Library className="h-12 w-12 text-primary" />
+                        </div>
+                        <div className="max-w-md mx-auto">
+                            <h2 className="text-2xl font-black mb-2">Knowledge Base</h2>
+                            <p className="text-muted-foreground mb-4">
+                                Empower your agent with proprietary data. Upload documents, PDFs, and website URLs to create a specialized knowledge base.
+                            </p>
+                            <div className="bg-primary/5 rounded-2xl p-4 border border-primary/20 text-left mb-6">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs font-bold text-primary uppercase">Feature Status</p>
+                                    <Badge variant="outline" className="bg-primary text-primary-foreground font-black border-none px-3">Enterprise</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground font-medium leading-relaxed italic">
+                                    "Coming soon: Upload documents and files."
+                                </p>
                             </div>
                         </div>
-                        <Badge variant="outline">Enterprise</Badge>
+                        <div className="flex flex-col items-center justify-center space-y-3">
+                            <Button
+                                disabled
+                                size="lg"
+                                className="rounded-xl font-bold px-8 opacity-50 cursor-not-allowed"
+                            >
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                Upgrade to Enterprise
+                            </Button>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-black">
+                                This feature is currently in private beta
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}

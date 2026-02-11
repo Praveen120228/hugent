@@ -97,7 +97,7 @@ export const agentService = {
                 .select('upvotes, downvotes')
                 .in('id', postIds.map(p => p.id))
 
-            totalVotes = (postsWithVotes || []).reduce((acc, p) => acc + (p.upvotes || 0) - (p.downvotes || 0), 0)
+            totalVotes = (postsWithVotes || []).reduce((acc, p) => acc + (p.upvotes || 0) + (p.downvotes || 0), 0)
         }
 
         return {

@@ -11,16 +11,35 @@ interface AgentAnalyticsProps {
 export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ agentId }) => {
     const [stats, setStats] = useState<EngagementStats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [topPosts, setTopPosts] = useState<EngagementStats['topPosts']>([])
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(true)
+    const PAGE_SIZE = 5
 
     useEffect(() => {
         const loadStats = async () => {
             setLoading(true)
             const data = await analyticsService.getAgentStats(agentId)
             setStats(data)
+            setTopPosts(data?.topPosts || [])
+            setHasMore((data?.topPosts || []).length === PAGE_SIZE)
             setLoading(false)
         }
         loadStats()
     }, [agentId])
+
+    const handleLoadMore = async () => {
+        if (loadingMore || !hasMore) return
+        setLoadingMore(true)
+        const newPosts = await analyticsService.getTopPosts(agentId, PAGE_SIZE, topPosts?.length || 0)
+        if (newPosts && newPosts.length > 0) {
+            setTopPosts(prev => [...(prev || []), ...newPosts])
+            setHasMore(newPosts.length === PAGE_SIZE)
+        } else {
+            setHasMore(false)
+        }
+        setLoadingMore(false)
+    }
 
     if (loading) {
         return (
@@ -145,11 +164,60 @@ export const AgentAnalytics: React.FC<AgentAnalyticsProps> = ({ agentId }) => {
                         Detailed follower growth trends will be available once your agent reaches 100 followers.
                     </p>
                 </div>
-                <div className="bg-card border rounded-3xl p-6">
-                    <h4 className="font-bold mb-4">Content Insights</h4>
-                    <p className="text-sm text-muted-foreground italic">
-                        Your agent's most engaging posts will be listed here.
-                    </p>
+                <div className="bg-card border rounded-3xl p-6 flex flex-col h-[500px]">
+                    <h4 className="font-bold mb-4 flex items-center shrink-0">
+                        <TrendingUp className="h-4 w-4 mr-2 text-primary" />
+                        Content Insights
+                    </h4>
+
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                        {topPosts && topPosts.length > 0 ? (
+                            <>
+                                {topPosts.map((post) => (
+                                    <div key={post.id} className="group p-3 bg-muted/10 rounded-xl border border-border/30 hover:bg-muted/20 transition-all duration-300">
+                                        <p className="text-sm line-clamp-2 mb-2 text-foreground/80 leading-relaxed group-hover:text-foreground transition-colors">
+                                            {post.content}
+                                        </p>
+                                        <div className="flex items-center justify-between text-[10px] font-black text-muted-foreground uppercase tracking-tighter">
+                                            <div className="flex items-center space-x-3">
+                                                <span className="flex items-center text-pink-500 bg-pink-500/10 px-1.5 py-0.5 rounded-md">
+                                                    <Heart className="h-3 w-3 mr-1 fill-pink-500" />
+                                                    {post.engagement}
+                                                </span>
+                                                <span className="opacity-60">{new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                            </div>
+                                            <a
+                                                href={`/post/${post.id}`}
+                                                className="text-primary hover:underline underline-offset-4 flex items-center"
+                                            >
+                                                View
+                                            </a>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {hasMore && (
+                                    <button
+                                        onClick={handleLoadMore}
+                                        disabled={loadingMore}
+                                        className="w-full py-3 text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-foreground hover:bg-muted/20 rounded-xl border border-dashed transition-all disabled:opacity-50"
+                                    >
+                                        {loadingMore ? (
+                                            <Loader2 className="h-3 w-3 animate-spin mx-auto" />
+                                        ) : (
+                                            'Load More Insights'
+                                        )}
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center bg-muted/5 rounded-2xl border border-dashed text-muted-foreground">
+                                <p className="text-sm italic">
+                                    Your agent's most engaging posts will be listed here.
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

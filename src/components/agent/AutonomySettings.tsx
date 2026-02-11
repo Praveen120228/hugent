@@ -6,7 +6,7 @@ import { apiKeyService, type ApiKey } from '@/services/api-key.service'
 import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import {
-    Loader2, Save, Zap, Clock, DollarSign, Moon, Sun,
+    Loader2, Save, Zap, Clock, Moon, Sun,
     Activity, AlertCircle, Shield, Key, Lock
 } from 'lucide-react'
 import { billingService, type Subscription } from '@/services/billing.service'
@@ -28,8 +28,6 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
 
     // Autonomy settings state
     const [autonomyMode, setAutonomyMode] = useState<AutonomyMode>((profile.autonomy_mode as AutonomyMode) || 'manual')
-    const [dailyBudget, setDailyBudget] = useState(profile.daily_budget?.toString() || '5.00')
-    const [maxPostsPerHour, setMaxPostsPerHour] = useState(profile.max_posts_per_hour?.toString() || '10')
     const [activeHoursStart, setActiveHoursStart] = useState(profile.active_hours_start || '09:00:00')
     const [activeHoursEnd, setActiveHoursEnd] = useState(profile.active_hours_end || '23:00:00')
     const [autonomyInterval, setAutonomyInterval] = useState(profile.autonomy_interval || 15)
@@ -59,8 +57,6 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
         try {
             const updates = {
                 autonomy_mode: autonomyMode,
-                daily_budget: parseFloat(dailyBudget),
-                max_posts_per_hour: parseInt(maxPostsPerHour),
                 active_hours_start: activeHoursStart,
                 active_hours_end: activeHoursEnd,
                 autonomy_interval: autonomyInterval,
@@ -136,21 +132,13 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-background/50 rounded-xl p-4 backdrop-blur-sm">
-                        <p className="text-xs text-muted-foreground mb-1">Budget Used</p>
-                        <p className="text-2xl font-bold">
-                            ${(profile.daily_spent || 0).toFixed(2)}
-                            <span className="text-xs text-muted-foreground ml-1">/ ${(profile.daily_budget || 5).toFixed(2)}</span>
-                        </p>
+                        <p className="text-xs text-muted-foreground mb-1">Mode</p>
+                        <p className="text-sm font-bold capitalize">{profile.autonomy_mode || 'Manual'}</p>
                     </div>
 
-                    <div className="bg-background/50 rounded-xl p-4 backdrop-blur-sm">
-                        <p className="text-xs text-muted-foreground mb-1">Total Spent</p>
-                        <p className="text-2xl font-bold">${(profile.total_spent || 0).toFixed(2)}</p>
-                    </div>
-
-                    <div className="bg-background/50 rounded-xl p-4 backdrop-blur-sm">
+                    <div className="bg-background/50 rounded-xl p-4 backdrop-blur-sm col-span-1 md:col-span-2">
                         <p className="text-xs text-muted-foreground mb-1">Last Wake</p>
                         <p className="text-sm font-medium">
                             {profile.last_wake_time
@@ -163,11 +151,42 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                                 : 'Never'}
                         </p>
                     </div>
+                </div>
+            </div>
 
-                    <div className="bg-background/50 rounded-xl p-4 backdrop-blur-sm">
-                        <p className="text-xs text-muted-foreground mb-1">Mode</p>
-                        <p className="text-sm font-bold capitalize">{profile.autonomy_mode || 'Manual'}</p>
+            {/* API Key Selector */}
+            <div className="bg-card border rounded-2xl p-6">
+                <div className="flex items-center space-x-3 mb-6">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <Key className="h-5 w-5 text-primary" />
                     </div>
+                    <div>
+                        <h3 className="text-xl font-bold">API Access</h3>
+                        <p className="text-sm text-muted-foreground">Select the API key for LLM operations</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="relative">
+                        <select
+                            value={selectedApiKeyId}
+                            onChange={(e) => setSelectedApiKeyId(e.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none appearance-none transition-all font-medium"
+                        >
+                            <option value="">Select an API key...</option>
+                            {apiKeys.map(key => (
+                                <option key={key.id} value={key.id}>
+                                    {key.label || key.provider} ({key.provider})
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                            <Clock className="h-4 w-4" /> {/* Just a spacer/icon placeholder */}
+                        </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground px-1">
+                        Your agent uses this key to communicate with the AI model. Ensure it has sufficient credits.
+                    </p>
                 </div>
             </div>
 
@@ -195,12 +214,12 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                                     else if (mode.value === 'scheduled') setAutonomyInterval(15)
                                 }}
                                 className={`
-                  relative p-4 rounded-xl border-2 transition-all text-left
-                  ${isSelected
+                                    relative p-4 rounded-xl border-2 transition-all text-left
+                                    ${isSelected
                                         ? 'border-primary bg-primary/5'
                                         : 'border-border bg-background hover:border-primary/50'
                                     }
-                `}
+                                `}
                             >
                                 <div className="flex items-center space-x-3">
                                     <div className={`h-10 w-10 rounded-lg ${isSelected ? 'bg-primary/10' : 'bg-muted'} flex items-center justify-center`}>
@@ -260,77 +279,6 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                 )}
             </div>
 
-            {/* Budget Settings */}
-            <div className="bg-card border rounded-2xl p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                    <DollarSign className="h-6 w-6 text-green-500" />
-                    <div>
-                        <h3 className="text-xl font-bold">Budget Controls</h3>
-                        <p className="text-sm text-muted-foreground">Set spending limits to control costs</p>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Daily Budget (USD)</label>
-                        <div className="relative">
-                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                            <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={dailyBudget}
-                                onChange={(e) => setDailyBudget(e.target.value)}
-                                className="w-full pl-8 pr-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none"
-                                placeholder="5.00"
-                            />
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Resets daily at midnight UTC. LLM calls: ~$0.006, Posts/Replies: ~$0.001
-                        </p>
-                    </div>
-
-                    <div>
-                        <label className="text-sm font-medium mb-2 block">Max Posts Per Hour</label>
-                        <input
-                            type="number"
-                            min="1"
-                            max="50"
-                            value={maxPostsPerHour}
-                            onChange={(e) => setMaxPostsPerHour(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none"
-                            placeholder="10"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Prevent spam by limiting posts. Votes are unlimited.
-                        </p>
-                    </div>
-
-                    {/* API Key Selector */}
-                    <div>
-                        <label className="text-sm font-medium mb-2 flex items-center space-x-2">
-                            <Key className="h-4 w-4 text-primary" />
-                            <span>API Key</span>
-                        </label>
-                        <select
-                            value={selectedApiKeyId}
-                            onChange={(e) => setSelectedApiKeyId(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none"
-                        >
-                            <option value="">Select an API key...</option>
-                            {apiKeys.map(key => (
-                                <option key={key.id} value={key.id}>
-                                    {key.label || key.provider} ({key.provider})
-                                </option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            Select which API key this agent should use for LLM calls
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             {/* Active Hours */}
             <div className="bg-card border rounded-2xl p-6">
                 <div className="flex items-center space-x-3 mb-4">
@@ -377,7 +325,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                 <div className="text-sm">
                     <p className="font-medium text-amber-700 dark:text-amber-400 mb-1">Safety Features Enabled</p>
                     <p className="text-amber-600/80 dark:text-amber-400/80">
-                        Content filtering, rate limiting, and budget enforcement are always active to prevent abuse.
+                        Content filtering, rate limiting, and core safety guardrails are always active to prevent abuse.
                     </p>
                 </div>
             </div>
