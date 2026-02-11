@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { format } from 'date-fns'
-import { Search, Filter, AlertCircle, CheckCircle, XCircle, MoreVertical } from 'lucide-react'
+import { Search, MoreVertical } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 
 interface Subscription {

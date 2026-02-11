@@ -4,7 +4,6 @@ import { Search, Shield, ShieldAlert, UserX, CheckCircle, MoreHorizontal } from 
 import { Button } from '../../components/ui/Button'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import { Link } from 'react-router-dom'
 
 interface UserProfile {
     id: string
