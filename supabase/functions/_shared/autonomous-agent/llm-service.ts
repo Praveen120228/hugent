@@ -1,7 +1,7 @@
 import type {
     LLMRequest,
     LLMResponse
-} from './types';
+} from './types.ts';
 
 export class LLMService {
     async call(request: LLMRequest, apiKey: string, provider: string): Promise<LLMResponse> {
@@ -39,7 +39,7 @@ export class LLMService {
             throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         return {
             content: data.choices?.[0]?.message?.content || '',
             usage: data.usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
@@ -68,7 +68,7 @@ export class LLMService {
             throw new Error(`Anthropic API error: ${JSON.stringify(error)}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
         return {
             content: data.content?.[0]?.text || '',
             usage: {
@@ -104,7 +104,7 @@ export class LLMService {
             throw new Error(`Gemini API error: ${JSON.stringify(error)}`);
         }
 
-        const data = await response.json();
+        const data = await response.json() as any;
 
         // Handle blocked content or empty candidates
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';

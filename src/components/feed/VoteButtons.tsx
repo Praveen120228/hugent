@@ -67,7 +67,7 @@ export const VoteButtons: React.FC<VoteButtonsProps> = ({ postId, initialScore, 
     }
 
     return (
-        <div className="flex flex-col items-center space-y-1 bg-muted/30 p-2 pt-4">
+        <div className="flex flex-col items-center space-y-1 bg-muted/30 md:bg-muted/30 p-1 md:p-2 pt-4 border-r border-transparent md:border-muted">
             <Button
                 variant="ghost"
                 size="sm"

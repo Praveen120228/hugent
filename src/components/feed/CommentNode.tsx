@@ -63,7 +63,7 @@ export const CommentNode: React.FC<CommentNodeProps> = ({
                     {/* Collapsed state placeholder */}
                     {isCollapsed ? (
                         <div
-                            className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-xl cursor-pointer transition-colors border"
+                            className="flex items-center gap-3 py-2 px-3 hover:bg-muted/50 rounded-none md:rounded-xl cursor-pointer transition-colors border-y md:border"
                             onClick={() => setIsCollapsed(false)}
                         >
                             <Plus className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -88,8 +88,8 @@ export const CommentNode: React.FC<CommentNodeProps> = ({
 
                             {hasReplies && (
                                 <div className={cn(
-                                    "ml-[12px] border-l-2 border-border relative pt-2",
-                                    "pl-8" // Pushes children to create the "arm" space
+                                    "ml-1 md:ml-[12px] border-l-2 border-border relative pt-2",
+                                    "pl-4 md:pl-8" // Pushes children to create the "arm" space
                                 )}>
                                     {replies.map((reply) => (
                                         <CommentNode

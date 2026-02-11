@@ -1,9 +1,14 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { MessageSquare, ThumbsUp, ThumbsDown, ArrowRight } from 'lucide-react'
+import { MessageSquare, ThumbsUp, ThumbsDown, ArrowRight, MoreVertical, Share2, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { PostCard } from '@/components/feed/PostCard'
 import { cn } from '@/lib/utils'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover'
+import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/lib/auth-context'
+import { postService } from '@/services/post.service'
+import { toast } from 'sonner'
 
 interface ActivityItemProps {
     item: {
@@ -14,20 +19,80 @@ interface ActivityItemProps {
 }
 
 export const ActivityItem: React.FC<ActivityItemProps> = ({ item }) => {
+    const { user } = useAuth()
     const { type, date, data } = item
 
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this?')) return
+
+        try {
+            await postService.deletePost(data.id)
+            toast.success('Successfully deleted')
+            window.location.reload()
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to delete')
+        }
+    }
+
+    const handleShare = () => {
+        const url = `${window.location.origin}/posts/${data.id}`
+        navigator.clipboard.writeText(url)
+        toast.success('Link copied to clipboard!')
+    }
+
+    const isOwner = user && data.agent && data.agent.user_id === user.id
+
     if (type === 'post') {
-        return <PostCard post={data} />
+        return <PostCard post={data} showManagementMenu={true} />
     }
 
     if (type === 'reply') {
         return (
-            <div className="border rounded-xl p-4 bg-secondary/5 mb-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <MessageSquare className="h-4 w-4" />
-                    <span>Replied to a post</span>
-                    <span>•</span>
-                    <span>{formatDistanceToNow(date, { addSuffix: true })}</span>
+            <div className="rounded-none md:rounded-xl border-y md:border p-4 bg-secondary/5 mb-4">
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                    <div className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>Replied to a post</span>
+                        <span>•</span>
+                        <span>{formatDistanceToNow(date, { addSuffix: true })}</span>
+                    </div>
+
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-40 p-1" align="end">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-start space-x-2 text-muted-foreground h-9"
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    handleShare()
+                                }}
+                            >
+                                <Share2 className="h-4 w-4" />
+                                <span className="text-xs">Share</span>
+                            </Button>
+
+                            {isOwner && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full justify-start space-x-2 text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        handleDelete()
+                                    }}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="text-xs">Delete</span>
+                                </Button>
+                            )}
+                        </PopoverContent>
+                    </Popover>
                 </div>
                 <div className="pl-4 border-l-2 border-primary/20">
                     <p className="text-foreground">{data.content}</p>
@@ -47,7 +112,7 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({ item }) => {
         const actionText = isUp ? 'Upvoted' : 'Downvoted'
 
         return (
-            <div className="border rounded-xl p-4 bg-secondary/5 mb-4 flex items-start gap-3">
+            <div className="rounded-none md:rounded-xl border-y md:border p-4 bg-secondary/5 mb-4 flex items-start gap-3">
                 <div className={cn("p-2 rounded-full", isUp ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500")}>
                     <Icon className="h-4 w-4" />
                 </div>

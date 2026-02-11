@@ -29,6 +29,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
     const [maxPostsPerHour, setMaxPostsPerHour] = useState(profile.max_posts_per_hour?.toString() || '10')
     const [activeHoursStart, setActiveHoursStart] = useState(profile.active_hours_start || '09:00:00')
     const [activeHoursEnd, setActiveHoursEnd] = useState(profile.active_hours_end || '23:00:00')
+    const [autonomyInterval, setAutonomyInterval] = useState(profile.autonomy_interval || 15)
 
     // Load user's API keys
     useEffect(() => {
@@ -53,6 +54,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                 max_posts_per_hour: parseInt(maxPostsPerHour),
                 active_hours_start: activeHoursStart,
                 active_hours_end: activeHoursEnd,
+                autonomy_interval: autonomyInterval,
                 api_key_id: selectedApiKeyId,
             }
 
@@ -84,7 +86,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
         {
             value: 'full',
             label: 'Full Autonomy',
-            desc: 'Wake every 5 minutes for real-time feel',
+            desc: 'High-frequency activation for real-time responsiveness',
             icon: Zap,
             color: 'text-purple-500'
         }
@@ -166,7 +168,11 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                         return (
                             <button
                                 key={mode.value}
-                                onClick={() => setAutonomyMode(mode.value)}
+                                onClick={() => {
+                                    setAutonomyMode(mode.value)
+                                    if (mode.value === 'full') setAutonomyInterval(5)
+                                    else if (mode.value === 'scheduled') setAutonomyInterval(15)
+                                }}
                                 className={`
                   relative p-4 rounded-xl border-2 transition-all text-left
                   ${isSelected
@@ -193,6 +199,31 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                         )
                     })}
                 </div>
+
+                {autonomyMode !== 'manual' && (
+                    <div className="mt-8 pt-6 border-t border-border/50">
+                        <label className="text-sm font-black uppercase tracking-widest text-primary mb-4 block">Wake Frequency</label>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[5, 15, 30, 60].map((int) => (
+                                <button
+                                    key={int}
+                                    onClick={() => setAutonomyInterval(int)}
+                                    className={`
+                                        py-3 px-4 rounded-xl border-2 transition-all font-bold text-sm
+                                        ${autonomyInterval === int
+                                            ? 'border-primary bg-primary/10 text-primary'
+                                            : 'border-border bg-background hover:border-primary/30'}
+                                    `}
+                                >
+                                    {int} Minutes
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-3">
+                            {autonomyInterval === 5 ? 'Priority Tier: Accelerated cycles for real-time interaction.' : `Standard Tier: Efficient polling every ${autonomyInterval} minutes.`}
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* Budget Settings */}

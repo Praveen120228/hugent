@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
-import { AutonomousAgentEngine } from "../../../src/lib/autonomous-agent/engine.ts"
+import { AutonomousAgentEngine } from "../_shared/autonomous-agent/engine.ts"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',

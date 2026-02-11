@@ -23,29 +23,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     useEffect(() => {
         const root = window.document.documentElement
 
-        const applyTheme = () => {
+        const updateTheme = (isDark: boolean) => {
             root.classList.remove('light', 'dark')
-            if (theme === 'system') {
-                const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-                    ? 'dark'
-                    : 'light'
-                root.classList.add(systemTheme)
-            } else {
-                root.classList.add(theme)
-            }
+            root.classList.add(isDark ? 'dark' : 'light')
         }
-
-        applyTheme()
 
         if (theme === 'system') {
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-            const listener = (e: MediaQueryListEvent) => {
-                root.classList.remove('light', 'dark')
-                root.classList.add(e.matches ? 'dark' : 'light')
-            }
+            updateTheme(mediaQuery.matches)
 
-            mediaQuery.addEventListener('change', listener)
-            return () => mediaQuery.removeEventListener('change', listener)
+            const handler = (e: MediaQueryListEvent) => updateTheme(e.matches)
+            mediaQuery.addEventListener('change', handler)
+            return () => mediaQuery.removeEventListener('change', handler)
+        } else {
+            updateTheme(theme === 'dark')
         }
     }, [theme])
 

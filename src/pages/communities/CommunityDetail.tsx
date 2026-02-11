@@ -246,12 +246,14 @@ export const CommunityDetail: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-fade-in pb-20">
-            <Link to="/communities" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Communities
-            </Link>
+            <div className="px-4 md:px-0">
+                <Link to="/communities" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Communities
+                </Link>
+            </div>
 
-            <div className="relative overflow-hidden rounded-3xl border bg-card aspect-[4/1] md:aspect-[6/1]">
+            <div className="relative overflow-hidden rounded-none md:rounded-3xl border-y md:border bg-card aspect-[16/7] md:aspect-[6/1]">
                 <div
                     className="w-full h-full relative"
                 >
@@ -282,7 +284,7 @@ export const CommunityDetail: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16 relative px-4 md:px-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-10 md:-mt-16 relative px-4 md:px-8">
                 <div className="flex items-end space-x-6">
                     <div className="h-24 w-24 md:h-32 md:w-32 rounded-3xl border-4 border-background bg-card overflow-hidden shadow-xl">
                         {community.avatar_url ? (
@@ -299,7 +301,7 @@ export const CommunityDetail: React.FC = () => {
                         )}
                     </div>
                     <div className="pb-2 space-y-1">
-                        <h1 className="text-3xl md:text-5xl font-black tracking-tight">c/{community.name}</h1>
+                        <h1 className="text-2xl md:text-5xl font-black tracking-tight">c/{community.name}</h1>
                         <div className="flex items-center space-x-4 text-muted-foreground font-bold">
                             <div className="flex items-center space-x-1">
                                 <Users className="h-4 w-4" />
@@ -312,14 +314,14 @@ export const CommunityDetail: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                <div className="flex space-x-3 pb-2">
+                <div className="flex space-x-2 md:space-x-3 pb-2">
                     {membershipStatus === 'none' && (
                         <Button
                             size="lg"
-                            className="px-10 font-black rounded-full shadow-lg shadow-primary/20"
+                            className="flex-1 md:flex-none px-6 md:px-10 font-black rounded-full shadow-lg shadow-primary/20"
                             onClick={handleJoin}
                         >
-                            {community.privacy === 'private' ? 'Request to Join' : 'Join'}
+                            {community.privacy === 'private' ? 'Request' : 'Join'}
                         </Button>
                     )}
                     {membershipStatus === 'pending' && (
@@ -332,8 +334,8 @@ export const CommunityDetail: React.FC = () => {
                             variant={isOwner ? "secondary" : "outline"}
                             size="lg"
                             className={cn(
-                                "px-10 font-bold rounded-full transition-all group/btn",
-                                !isOwner && "hover:bg-destructive hover:text-destructive-foreground hover:border-destructive min-w-[140px]"
+                                "flex-1 md:flex-none px-6 md:px-10 font-bold rounded-full transition-all group/btn",
+                                !isOwner && "hover:bg-destructive hover:text-destructive-foreground hover:border-destructive min-w-[100px] md:min-w-[140px]"
                             )}
                             disabled={isOwner}
                             onClick={!isOwner ? handleJoin : undefined}
@@ -348,7 +350,7 @@ export const CommunityDetail: React.FC = () => {
                         </Button>
                     )}
 
-                    <Button variant="outline" size="sm" className="h-12 w-12 rounded-full border-2">
+                    <Button variant="outline" size="sm" className="h-11 w-11 md:h-12 md:w-12 rounded-full border-2 shrink-0">
                         <Info className="h-5 w-5" />
                     </Button>
                 </div>
@@ -420,7 +422,7 @@ export const CommunityDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                    <div className="rounded-2xl border bg-card p-6">
+                    <div className="rounded-none md:rounded-2xl border-y md:border bg-card p-6">
                         <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">About Community</h2>
                         <p className="text-sm leading-relaxed mb-6">
                             {community.description || 'Welcome to the c/' + community.name + ' community!'}
@@ -431,7 +433,7 @@ export const CommunityDetail: React.FC = () => {
                     </div>
 
                     {user && (
-                        <div className="rounded-2xl border bg-card p-6">
+                        <div className="rounded-none md:rounded-2xl border-y md:border bg-card p-6">
                             <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-4">Agent Memberships</h2>
                             <div className="space-y-4">
                                 {agentMemberships.length > 0 ? (

@@ -10,12 +10,14 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/lib/theme-context'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { BillingSettings } from '@/components/settings/BillingSettings'
+import { CreditCard as BillingIcon } from 'lucide-react'
 
 export const Settings: React.FC = () => {
     const { user } = useAuth()
     const { theme: currentTheme, setTheme } = useTheme()
     const [searchParams, setSearchParams] = useSearchParams()
-    const activeTab = (searchParams.get('tab') as 'agents' | 'keys' | 'notifications' | 'appearance') || 'agents'
+    const activeTab = (searchParams.get('tab') as 'agents' | 'keys' | 'notifications' | 'appearance' | 'billing') || 'agents'
 
     const setActiveTab = (tab: string) => {
         setSearchParams({ tab })
@@ -153,18 +155,19 @@ export const Settings: React.FC = () => {
 
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 animate-fade-in">
-            <div className="flex flex-col space-y-2">
-                <h1 className="text-4xl font-extrabold tracking-tight">Settings</h1>
-                <p className="text-muted-foreground font-medium">Manage your account, API keys, and preferences.</p>
+        <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-fade-in pb-20">
+            <div className="flex flex-col space-y-2 px-4 md:px-0">
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Settings</h1>
+                <p className="text-sm md:text-base text-muted-foreground font-medium">Manage your account, API keys, and preferences.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-4 md:gap-8">
                 {/* Sidebar Nav */}
-                <div className="flex flex-col space-y-2">
+                <div className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto no-scrollbar px-4 md:px-0 pb-2 lg:pb-0">
                     {[
                         { id: 'agents', label: 'My Agents', icon: Bot },
                         { id: 'keys', label: 'API Keys', icon: Key },
+                        { id: 'billing', label: 'Billing & Plans', icon: BillingIcon },
                         { id: 'notifications', label: 'Notifications', icon: Bell },
                         { id: 'appearance', label: 'Appearance', icon: Sun },
                     ].map((item) => (
@@ -172,10 +175,10 @@ export const Settings: React.FC = () => {
                             key={item.id}
                             onClick={() => setActiveTab(item.id as any)}
                             className={cn(
-                                "flex items-center space-x-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all",
+                                "flex items-center space-x-3 px-5 py-3 lg:px-4 lg:py-3 rounded-full lg:rounded-2xl text-sm font-bold transition-all whitespace-nowrap lg:whitespace-normal",
                                 activeTab === item.id
                                     ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                    : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                                    : "bg-muted/50 lg:bg-transparent hover:bg-accent text-muted-foreground hover:text-foreground"
                             )}
                         >
                             <item.icon className="h-4 w-4" />
@@ -185,7 +188,7 @@ export const Settings: React.FC = () => {
                 </div>
 
                 {/* Content Area */}
-                <div className="bg-card border rounded-[2rem] p-8 shadow-sm">
+                <div className="bg-card border-y md:border rounded-none md:rounded-[2rem] p-6 md:p-8 shadow-sm">
 
                     {activeTab === 'agents' && (
                         <div className="space-y-6">
@@ -214,7 +217,7 @@ export const Settings: React.FC = () => {
                                         <Link
                                             key={agent.id}
                                             to={`/agents/${agent.id}`}
-                                            className="group flex flex-col bg-background/50 border rounded-2xl p-4 transition-all hover:shadow-md hover:border-primary/30 relative overflow-hidden"
+                                            className="group flex flex-col bg-background/50 border rounded-xl md:rounded-2xl p-4 transition-all hover:shadow-md hover:border-primary/30 relative overflow-hidden"
                                         >
                                             <div className="flex items-start justify-between relative z-10">
                                                 <div className="h-12 w-12 rounded-xl bg-primary/10 border flex items-center justify-center text-primary font-bold overflow-hidden">
@@ -298,9 +301,9 @@ export const Settings: React.FC = () => {
                             ) : (
                                 <div className="space-y-4 mt-6">
                                     {apiKeys.map((key) => (
-                                        <div key={key.id} className="flex items-center justify-between p-4 rounded-2xl border bg-accent/30 group hover:border-primary/30 transition-all">
+                                        <div key={key.id} className="flex items-center justify-between p-4 rounded-xl md:rounded-2xl border bg-accent/30 group hover:border-primary/30 transition-all">
                                             <div className="flex items-center space-x-4">
-                                                <div className="h-10 w-10 rounded-xl bg-background flex items-center justify-center border shadow-sm">
+                                                <div className="h-10 w-10 rounded-lg md:rounded-xl bg-background flex items-center justify-center border shadow-sm">
                                                     <Key className="h-5 w-5 text-primary" />
                                                 </div>
                                                 <div>
@@ -402,6 +405,10 @@ export const Settings: React.FC = () => {
                                 ))}
                             </div>
                         </div>
+                    )}
+
+                    {activeTab === 'billing' && (
+                        <BillingSettings />
                     )}
                 </div>
             </div >

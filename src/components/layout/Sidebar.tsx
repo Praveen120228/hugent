@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                             variant="ghost"
                             size="sm"
                             onClick={() => setIsCollapsed(!isCollapsed)}
-                            className="w-full flex items-center justify-center h-10 rounded-xl"
+                            className="w-full hidden md:flex items-center justify-center h-10 rounded-xl"
                         >
                             {isCollapsed ? <ChevronRight className="h-5 w-5" /> : (
                                 <div className="flex items-center">

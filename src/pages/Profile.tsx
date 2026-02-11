@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
-import { postService, type Post } from '@/services/post.service'
+import { postService } from '@/services/post.service'
 import { profileService, type Profile } from '@/services/profile.service'
-import { Loader2, MessageSquare, Edit3, Camera, Save, Calendar, Image as ImageIcon, MessageCircle, Heart, Users } from 'lucide-react'
+import { Loader2, MessageSquare, Edit3, Camera, Save, Calendar, MessageCircle, Heart, Users } from 'lucide-react'
 import { ActivityItem } from '@/components/agent/ActivityItem'
 import { FollowsModal } from '@/components/profile/FollowsModal'
 import { FollowButton } from '@/components/agent/FollowButton'
@@ -23,16 +23,9 @@ export const ProfilePage: React.FC = () => {
     const isOwner = user && (!userId || userId === user.id)
 
     const [profile, setProfile] = useState<Profile | null>(null)
-    const [posts, setPosts] = useState<Post[]>([])
     const [activity, setActivity] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-    const [searchParams, setSearchParams] = useSearchParams()
-    const activeTab = (searchParams.get('tab') as 'posts' | 'media') || 'posts'
-
-    const setActiveTab = (tab: string) => {
-        setSearchParams({ tab })
-    }
     const [isFollowsModalOpen, setIsFollowsModalOpen] = useState(false)
     const [followsModalTab, setFollowsModalTab] = useState<'followers' | 'following'>('followers')
     const [stats, setStats] = useState({ totalVotes: 0, postCount: 0, commentCount: 0, followers: 0, following: 0 })
@@ -68,7 +61,6 @@ export const ProfilePage: React.FC = () => {
                         profileService.getFollows(userId, 'user', 'following')
                     ])
 
-                    setPosts(postsData)
                     setStats(statsData)
                     setFollowers(followersData)
                     setFollowing(followingData)
@@ -147,8 +139,7 @@ export const ProfilePage: React.FC = () => {
                 setHasMore(false)
             }
 
-            setActivity(current => [...current, ...newActivity])
-            setPosts(current => [...current, ...postsData])
+            setActivity((current: any[]) => [...current, ...newActivity])
         } catch (error) {
             console.error('Error loading more activity:', error)
         } finally {
@@ -170,7 +161,7 @@ export const ProfilePage: React.FC = () => {
         if (loader) observer.observe(loader)
 
         return () => observer.disconnect()
-    }, [loading, loadingMore, hasMore, activity.length, activeTab])
+    }, [loading, loadingMore, hasMore, activity.length])
 
     if (loading) {
         return (
@@ -480,126 +471,79 @@ export const ProfilePage: React.FC = () => {
             <div className="space-y-6">
                 <div className="flex items-center justify-between px-2 border-b">
                     <div className="flex items-center space-x-8">
-                        <button
-                            onClick={() => setActiveTab('posts')}
-                            className={cn(
-                                "text-sm font-black uppercase tracking-widest transition-all relative py-4",
-                                activeTab === 'posts' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-                            )}
+                        <div
+                            className="text-sm font-black uppercase tracking-widest transition-all relative py-4 text-primary border-b-2 border-primary"
                         >
                             Activity
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('media')}
-                            className={cn(
-                                "text-sm font-black uppercase tracking-widest transition-all relative py-4",
-                                activeTab === 'media' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            Media
-                        </button>
+                        </div>
                     </div>
                 </div>
 
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {activeTab === 'posts' ? (
-                        <div className="space-y-8">
-                            {/* Stats Highlight */}
-                            <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4 bg-muted/20 p-6 rounded-[2.5rem] border border-muted/30">
-                                <div className="text-center space-y-1">
-                                    <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
-                                        <MessageCircle className="h-3 w-3" />
-                                        <span className="text-[8px] uppercase tracking-widest">Activity</span>
-                                    </div>
-                                    <p className="text-3xl font-black tabular-nums">{stats.postCount}</p>
+                    <div className="space-y-8">
+                        {/* Stats Highlight */}
+                        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4 bg-muted/20 p-6 rounded-[2.5rem] border border-muted/30">
+                            <div className="text-center space-y-1">
+                                <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
+                                    <MessageCircle className="h-3 w-3" />
+                                    <span className="text-[8px] uppercase tracking-widest">Activity</span>
                                 </div>
-                                <div className="text-center space-y-1 border-x border-muted/30">
-                                    <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
-                                        <MessageSquare className="h-3 w-3" />
-                                        <span className="text-[8px] uppercase tracking-widest">Replies</span>
-                                    </div>
-                                    <p className="text-3xl font-black tabular-nums">{stats.commentCount}</p>
-                                </div>
-                                <div className="text-center space-y-1">
-                                    <div className="flex items-center justify-center space-x-2 text-rose-500 opacity-60 font-black">
-                                        <Heart className="h-3 w-3" />
-                                        <span className="text-[8px] uppercase tracking-widest">Karma</span>
-                                    </div>
-                                    <p className="text-3xl font-black tabular-nums">{stats.totalVotes}</p>
-                                </div>
+                                <p className="text-3xl font-black tabular-nums">{stats.postCount}</p>
                             </div>
-
-                            {activity.length > 0 ? (
-                                <div className="grid grid-cols-1 gap-6 max-w-3xl mx-auto">
-                                    {activity.map((item, idx) => (
-                                        <ActivityItem
-                                            key={`${item.type}-${item.data?.id || idx}-${item.date?.getTime()}`}
-                                            item={item}
-                                        />
-                                    ))}
-
-                                    {hasMore && (
-                                        <div id="profile-activity-loader" className="flex justify-center py-8">
-                                            {loadingMore ? (
-                                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                            ) : (
-                                                <div className="h-6 w-6" />
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {!hasMore && activity.length > 0 && (
-                                        <div className="text-center py-8 text-muted-foreground font-medium">
-                                            End of activity.
-                                        </div>
-                                    )}
+                            <div className="text-center space-y-1 border-x border-muted/30">
+                                <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
+                                    <MessageSquare className="h-3 w-3" />
+                                    <span className="text-[8px] uppercase tracking-widest">Replies</span>
                                 </div>
-                            ) : (
-                                <div className="bg-card border-none rounded-[3rem] p-20 text-center space-y-6 shadow-sm ring-1 ring-black/5 text-foreground max-w-3xl mx-auto">
-                                    <div className="h-24 w-24 bg-primary/5 rounded-[2rem] flex items-center justify-center mx-auto ring-8 ring-primary/[0.02]">
-                                        <MessageSquare className="h-10 w-10 text-primary opacity-40" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <p className="text-2xl font-black tracking-tight text-foreground">No activity yet</p>
-                                        <p className="text-muted-foreground font-medium max-w-xs mx-auto">Your posts and votes will appear here.</p>
-                                    </div>
-                                    <Button className="rounded-2xl font-black px-8">Create First Post</Button>
+                                <p className="text-3xl font-black tabular-nums">{stats.commentCount}</p>
+                            </div>
+                            <div className="text-center space-y-1">
+                                <div className="flex items-center justify-center space-x-2 text-rose-500 opacity-60 font-black">
+                                    <Heart className="h-3 w-3" />
+                                    <span className="text-[8px] uppercase tracking-widest">Karma</span>
                                 </div>
-                            )}
+                                <p className="text-3xl font-black tabular-nums">{stats.totalVotes}</p>
+                            </div>
                         </div>
-                    ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            {posts.filter(p => p.post_type === 'image').map(post => (
-                                <div key={post.id} className="aspect-square rounded-3xl overflow-hidden border-4 border-background shadow-md hover:scale-105 transition-transform group relative">
-                                    <img src={post.media_url || undefined} className="w-full h-full object-cover" alt="Media" />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <ImageIcon className="h-8 w-8 text-white" />
+
+                        {activity.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-6 max-w-3xl mx-auto">
+                                {activity.map((item: any, idx: number) => (
+                                    <ActivityItem
+                                        key={`${item.type}-${item.data?.id || idx}-${item.date?.getTime()}`}
+                                        item={item}
+                                    />
+                                ))}
+
+                                {hasMore && (
+                                    <div id="profile-activity-loader" className="flex justify-center py-8">
+                                        {loadingMore ? (
+                                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                        ) : (
+                                            <div className="h-6 w-6" />
+                                        )}
                                     </div>
-                                </div>
-                            ))}
-                            {posts.filter(p => p.post_type === 'image').length === 0 && (
-                                <div className="col-span-full py-20 text-center grayscale opacity-50 text-foreground">
-                                    <p className="font-bold">No media found</p>
-                                </div>
-                            )}
+                                )}
 
-                            {hasMore && (
-                                <div id="profile-media-loader" className="col-span-full flex justify-center py-8">
-                                    {loadingMore ? (
-                                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                                    ) : (
-                                        <div className="h-6 w-6" />
-                                    )}
+                                {!hasMore && activity.length > 0 && (
+                                    <div className="text-center py-8 text-muted-foreground font-medium">
+                                        End of activity.
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-card border-none rounded-[3rem] p-20 text-center space-y-6 shadow-sm ring-1 ring-black/5 text-foreground max-w-3xl mx-auto">
+                                <div className="h-24 w-24 bg-primary/5 rounded-[2rem] flex items-center justify-center mx-auto ring-8 ring-primary/[0.02]">
+                                    <MessageSquare className="h-10 w-10 text-primary opacity-40" />
                                 </div>
-                            )}
-
-                            {!hasMore && posts.filter(p => p.post_type === 'image').length > 0 && (
-                                <div className="col-span-full text-center py-8 text-muted-foreground font-medium">
-                                    End of media.
+                                <div className="space-y-2">
+                                    <p className="text-2xl font-black tracking-tight text-foreground">No activity yet</p>
+                                    <p className="text-muted-foreground font-medium max-w-xs mx-auto">Your posts and votes will appear here.</p>
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                <Button className="rounded-2xl font-black px-8">Create First Post</Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <FollowsModal

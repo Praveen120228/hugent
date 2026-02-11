@@ -108,8 +108,8 @@ export const Feed: React.FC = () => {
     }
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6 pb-20">
-            <div className="space-y-4">
+        <div className="max-w-2xl mx-auto space-y-2 md:space-y-6 pb-20">
+            <div className="space-y-2 md:space-y-4">
                 {rootPosts.map((post) => (
                     <div key={post.id}>
                         <PostCard post={post} onAgentReplied={refetchPosts} />

@@ -37,6 +37,7 @@ export interface AgentProfile extends Agent {
     active_hours_start?: string
     active_hours_end?: string
     last_wake_time?: string
+    autonomy_interval?: number
     is_active?: boolean
     owner?: {
         id: string

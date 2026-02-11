@@ -13,11 +13,11 @@ import type {
     BudgetCheckResult,
     UnreadReplies,
     AgentIntent,
-} from './types';
-import { DatabaseAdapter } from './database-adapter';
-import { contentFilter } from './content-filter';
-import { LLMService } from './llm-service';
-import { cryptoUtils } from './crypto-utils';
+} from './types.ts';
+import { DatabaseAdapter } from './database-adapter.ts';
+import { contentFilter } from './content-filter.ts';
+import { LLMService } from './llm-service.ts';
+import { cryptoUtils } from './crypto-utils.ts';
 
 export class AutonomousAgentEngine {
     private db: DatabaseAdapter;
@@ -64,6 +64,8 @@ export class AutonomousAgentEngine {
             // 2. CHECK BUDGET & RATE LIMITS
             const budgetCheck = await this.checkBudgetAndLimits(agent);
             if (!budgetCheck.canProceed) {
+                // For forced wake, we still check budget but maybe more leniently?
+                // For now keep it strict.
                 return {
                     agentId,
                     wakeTime: startTime,
@@ -77,7 +79,7 @@ export class AutonomousAgentEngine {
             }
 
             // 3. GATHER CONTEXT (Including history and new replies)
-            const context = await this.gatherContext(agent);
+            const context = await this.gatherContext(agent, intent);
 
             // 4. DECIDED ACTIONS (Follows Priorities 1-4)
             const decisions = await this.decideActions(agent, context, intent);
@@ -90,9 +92,9 @@ export class AutonomousAgentEngine {
             const actionTypesPerformed: string[] = [];
 
             // Priority: Replies first
-            const replyActions = decisions.actions.filter(a => a.type === 'reply');
-            const voteActions = decisions.actions.filter(a => a.type === 'upvote' || a.type === 'downvote');
-            const postActions = decisions.actions.filter(a => a.type === 'post');
+            const replyActions = decisions.actions.filter((a: AgentAction) => a.type === 'reply');
+            const voteActions = decisions.actions.filter((a: AgentAction) => a.type === 'upvote' || a.type === 'downvote');
+            const postActions = decisions.actions.filter((a: AgentAction) => a.type === 'post');
 
             const allActionsToExecute = [...replyActions, ...voteActions, ...postActions];
 
@@ -120,7 +122,7 @@ export class AutonomousAgentEngine {
 
             // Priority 5: Record which posts were checked for replies
             if (context.unreadRepliesByPost.length > 0) {
-                const checkedPostIds = context.unreadRepliesByPost.map(ur => ur.postId);
+                const checkedPostIds = context.unreadRepliesByPost.map((ur: UnreadReplies) => ur.postId);
                 await this.db.markPostsAsChecked(agent.id, checkedPostIds);
             }
 
@@ -132,7 +134,7 @@ export class AutonomousAgentEngine {
                 agent_id: agent.id,
                 wake_time: startTime,
                 actions_performed: actionsPerformed.length,
-                action_types: actionsPerformed.map(a => a.type),
+                action_types: actionsPerformed.map((a: AgentAction) => a.type),
                 total_cost: totalCost,
                 tokens_used: tokensUsed,
                 forced: forcedWake,
@@ -197,9 +199,9 @@ export class AutonomousAgentEngine {
     ): Promise<DecisionResult> {
         const startTime = Date.now();
 
-        // Check if we have a forced action (intent)
-        if (intent) {
-            console.log(`Force-injecting intent: ${intent.type} for agent ${agent.name}`);
+        // Check if we have a forced action (intent) that already has content
+        if (intent && (intent.content || intent.type === 'join_community' || intent.type === 'upvote' || intent.type === 'downvote')) {
+            console.log(`Force-injecting completed intent: ${intent.type} for agent ${agent.name}`);
             const forcedAction: AgentAction = {
                 type: intent.type as any,
                 postId: intent.targetPostId,
@@ -237,7 +239,7 @@ export class AutonomousAgentEngine {
         console.log(`Decryption successful. Key starts with: ${apiKey.substring(0, 8)}...`);
 
         // 3. Build Prompt
-        const prompt = this.buildDecisionPrompt(agent, context);
+        const prompt = this.buildDecisionPrompt(agent, context, intent);
 
         // 4. Call LLM
         const response = await this.llm.call({
@@ -295,6 +297,10 @@ export class AutonomousAgentEngine {
                             action.postId = post.id;
                             actions.push(action);
                         }
+                    } else if (target === 'DIRECTIVE_TARGET' && intent?.targetPostId) {
+                        // Map DIRECTIVE_TARGET to the intent target
+                        action.postId = intent.targetPostId;
+                        actions.push(action);
                     }
                 } else if (action.type === 'post') {
                     // Posts can optionally target a community
@@ -303,6 +309,29 @@ export class AutonomousAgentEngine {
                         action.communityId = action.communityId.substring(2);
                     }
                     actions.push(action);
+                }
+            }
+
+            // 7. Enforce single action IF there was an intent
+            if (intent) {
+                // If the LLM returned actions, make sure the first one matches the directive
+                if (actions.length > 0) {
+                    const firstAction = actions[0];
+
+                    // Coerce to match intent if there's a type or target mismatch
+                    if (firstAction.type !== intent.type) {
+                        console.log(`Coerced action type from ${firstAction.type} to ${intent.type} to match directive.`);
+                        firstAction.type = intent.type as any;
+                    }
+
+                    // Ensure target is correct for replies
+                    if (intent.type === 'reply' && firstAction.postId !== intent.targetPostId) {
+                        console.log(`Coerced target postId for reply to match directive.`);
+                        firstAction.postId = intent.targetPostId;
+                    }
+
+                    console.log(`Strictly enforcing mandatory directive. Discarding ${actions.length - 1} auxiliary actions.`);
+                    actions = [firstAction];
                 }
             }
         } catch (e) {
@@ -328,7 +357,7 @@ export class AutonomousAgentEngine {
     /**
      * Build the decision prompt - this is crucial for good agent behavior
      */
-    private buildDecisionPrompt(agent: Agent, context: AgentContext): string {
+    private buildDecisionPrompt(agent: Agent, context: AgentContext, intent?: AgentIntent): string {
         const canPostNew = context.dailyPostCount < 50;
 
         let prompt = `You are ${agent.name} (@${agent.username}), an AI agent on the Hugents social network.
@@ -339,6 +368,16 @@ ${agent.personality}
 YOUR TRAITS: ${agent.traits.join(', ')}
 YOUR INTERESTS: ${agent.interests.join(', ')}
 
+${intent ? `USER DIRECTIVE (MANDATORY):
+You have been woken up with a specific directive. You MUST perform this action:
+TYPE: ${intent.type}
+${intent.targetPostId ? `TARGET POST [DIRECTIVE_TARGET]: "${context.targetPostForIntent?.content}" by @${context.targetPostForIntent?.username}` : ''}
+${intent.communityId ? `COMMUNITY: ${intent.communityId}` : ''}
+
+Your response MUST include a "${intent.type}" action with "target": "DIRECTIVE_TARGET".
+DO NOT create a new top-level "post" to tell the user you are replying; use the "reply" action type so it threads correctly.
+` : ''}
+
 CURRENT CONTEXT:
 - Time: ${new Date().toLocaleString()}
 - Daily stats: ${context.dailyPostCount}/50 new posts today.
@@ -346,11 +385,14 @@ CURRENT CONTEXT:
 
 PRIORITY 1 & 2: REPLIES TO YOUR POSTS
 You must review new replies to your previous posts. Choose the ONE most engaging comment to respond to across ALL your posts.
-${context.unreadRepliesByPost.length === 0 ? "You have no new replies to your posts." : context.unreadRepliesByPost.map((ur, i) =>
-            `--- Your Post [P${i}]: "${ur.originalContent}" ---
+${context.unreadRepliesByPost.length === 0
+                ? "You have no new replies to your posts."
+                : context.unreadRepliesByPost.map((ur: UnreadReplies, i: number) =>
+                    `--- Your Post [P${i}]: "${ur.originalContent}" ---
 New Replies to P${i}:
-${ur.replies.map((r, j) => `  [R_${i}_${j}] @${r.username}: "${r.content}"`).join('\n')}`
-        ).join('\n\n')}
+${ur.replies.map((r: any, j: number) => `  [R_${i}_${j}] @${r.username}: "${r.content}"`).join('\n')}`
+                ).join('\n\n')
+            }
 
 PRIORITY 3: VOTING
 Review the replies and the network feed above. You should upvote/downvote posts or comments that align/conflict with your personality.
@@ -358,50 +400,59 @@ Review the replies and the network feed above. You should upvote/downvote posts 
 PRIORITY 4: NEW CONTENT
 ${canPostNew
                 ? "You can create a new post if you have something interesting to say. You can post to the network (Portal) or one of your followed communities."
-                : "You have reached your limit of 50 new posts for today. Do NOT propose a new top-level post."}
+                : "You have reached your limit of 50 new posts for today. Do NOT propose a new top-level post."
+            }
 
 FOLLOWED COMMUNITIES:
-${context.followedCommunities.length === 0 ? "You do not follow any communities." : context.followedCommunities.map(c => `[C_${c.id}] c/${c.name}`).join('\n')}
+${context.followedCommunities.length === 0 ? "You do not follow any communities." : context.followedCommunities.map((c: any) => `[C_${c.id}] c/${c.name}`).join('\n')}
 
 RECENT NETWORK FEED:
-${context.recentPosts.length === 0 ? "The network feed is currently empty." : context.recentPosts.map((post, i) =>
-                    `[F${i}] @${post.username}: "${post.content}"`
-                ).join('\n')}
+${context.recentPosts.length === 0 ? "The network feed is currently empty." : context.recentPosts.map((post: any, i: number) =>
+                `[F${i}] @${post.username}: "${post.content}"`
+            ).join('\n')
+            }
 
 RECENT COMMUNITY POSTS (from your followed communities):
-${context.communityPosts.length === 0 ? "No recent posts in your followed communities." : context.communityPosts.map((post, i) =>
-                    `[CP${i}] (c/${post.communityName}) @${post.username}: "${post.content}"`
-                ).join('\n')}
+${context.communityPosts.length === 0 ? "No recent posts in your followed communities." : context.communityPosts.map((post: any, i: number) =>
+                `[CP${i}] (c/${post.communityName}) @${post.username}: "${post.content}"`
+            ).join('\n')
+            }
 
 YOUR TASK:
 Decide on your actions. Format as JSON:
 {
-  "actions": [
-    {
-      "type": "reply",
-      "target": "R_0_1", // Use the reference ID
-      "content": "Your reply...",
-      "reasoning": "Why this reply is the most engaging"
-    },
-    {
-      "type": "upvote",
-      "target": "R_0_2",
-      "reasoning": "Strong point"
-    },
-    {
-      "type": "upvote",
-      "target": "F1",
-      "reasoning": "This post aligns with my interests"
-    },
-    {
-      "type": "post",
-      "communityId": "C_COMMUNITY_ID_HERE", // Optional: Use the C_ ID from FOLLOWED COMMUNITIES to post there
-      "content": "A new original post...",
-      "reasoning": "Optional if under limit"
-    }
-  ],
-  "thought_process": "Explain your logic..."
+    "actions": [
+        {
+            "type": "reply",
+            "target": "R_0_1", // Use the reference ID
+            "content": "Your reply...",
+            "reasoning": "Why this reply is the most engaging"
+        },
+        {
+            "type": "upvote",
+            "target": "R_0_2",
+            "reasoning": "Strong point"
+        },
+        {
+            "type": "upvote",
+            "target": "F1",
+            "reasoning": "This post aligns with my interests"
+        },
+        {
+            "type": "post",
+            "title": "A compelling subject line",
+            "communityId": "C_COMMUNITY_ID_HERE", // Optional: Use the C_ ID from FOLLOWED COMMUNITIES to post there
+            "content": "A new original post...",
+            "reasoning": "Why this post is interesting and aligns with my personality"
+        }
+    ],
+    "thought_process": "Explain your logic..."
 }
+
+CRITICAL RULES:
+1. Every new "post" MUST have a "title" (subject line). Replies do NOT need a title.
+2. ${intent ? `MANDATORY DIRECTIVE: You have been assigned a specific task. Your ONLY action in the array MUST be of type "${intent.type}" ${intent.targetPostId ? `targeting the post by @${context.targetPostForIntent?.username || 'the user'}` : ''}. Your action MUST use "target": "DIRECTIVE_TARGET". Do NOT include any other actions. ONLY return the directed "${intent.type}" action.` : 'Follow your personality and priorities.'}
+3. Do NOT ever end your post content with "..." unless it is part of the actual intended text.
 `;
         return prompt;
     }
@@ -434,7 +485,7 @@ Decide on your actions. Format as JSON:
                 return { success: true, cost: 0, tokensUsed: 0 };
 
             default:
-                console.warn(`Unknown action type: ${action.type}`);
+                console.warn(`Unknown action type: ${action.type} `);
                 return { success: false, cost: 0, tokensUsed: 0 };
         }
     }
@@ -450,20 +501,21 @@ Decide on your actions. Format as JSON:
         // Safety check
         const safetyCheck = await contentFilter.check(action.content);
         if (!safetyCheck.safe) {
-            console.warn(`Post blocked by content filter: ${safetyCheck.reason}`);
+            console.warn(`Post blocked by content filter: ${safetyCheck.reason} `);
             return { success: false, cost: 0, tokensUsed: 0 };
         }
 
         // Create post in database
         const post = await this.db.createPost({
             agent_id: agent.id,
+            title: action.title,
             content: action.content,
             community_id: action.communityId?.startsWith('C_') ? action.communityId.substring(2) : action.communityId,
             created_at: new Date(),
             cost: 0.001,
         } as any);
 
-        console.log(`✅ Agent ${agent.name} posted: "${action.content.substring(0, 50)}..."`);
+        console.log(`✅ Agent ${agent.name} posted: ${action.title ? `[${action.title}] ` : ''}"${action.content.substring(0, 100)}${action.content.length > 100 ? '...' : ''}"`);
 
         return {
             success: true,
@@ -488,7 +540,7 @@ Decide on your actions. Format as JSON:
 
             await this.db.joinCommunity(agent.id, action.communityId, status);
 
-            console.log(`Agent ${agent.name} ${status === 'approved' ? 'joined' : 'requested to join'} community ${action.communityId}`);
+            console.log(`Agent ${agent.name} ${status === 'approved' ? 'joined' : 'requested to join'} community ${action.communityId} `);
             return { success: true, cost: 0, tokensUsed: 0 };
         } catch (e) {
             console.error('Failed to join community:', e);
@@ -507,15 +559,27 @@ Decide on your actions. Format as JSON:
         // Safety check
         const safetyCheck = await contentFilter.check(action.content);
         if (!safetyCheck.safe) {
-            console.warn(`Reply blocked by content filter: ${safetyCheck.reason}`);
+            console.warn(`Reply blocked by content filter: ${safetyCheck.reason} `);
             return { success: false, cost: 0, tokensUsed: 0 };
         }
+
+        // Fetch parent post to get threading info
+        const parentPost = await this.db.findPostById(action.postId);
+        if (!parentPost) {
+            console.error(`Parent post ${action.postId} not found for reply`);
+            return { success: false, cost: 0, tokensUsed: 0 };
+        }
+
+        const threadId = parentPost.thread_id || parentPost.id;
+        const depth = (parentPost.depth || 0) + 1;
 
         // Create reply
         const reply = await this.db.createPost({
             agent_id: agent.id,
             content: action.content,
-            parent_post_id: action.postId,
+            parent_id: action.postId,
+            thread_id: threadId,
+            depth: depth,
             created_at: new Date(),
             cost: 0.001,
         } as any);
@@ -523,7 +587,7 @@ Decide on your actions. Format as JSON:
         // Update parent post reply count
         await this.db.incrementReplyCount(action.postId);
 
-        console.log(`✅ Agent ${agent.name} replied to post ${action.postId}`);
+        console.log(`✅ Agent ${agent.name} replied to post ${action.postId} `);
 
         return {
             success: true,
@@ -548,7 +612,7 @@ Decide on your actions. Format as JSON:
         // Check if already voted
         const existingVote = await this.db.findVoteByAgentAndPost(agent.id, action.postId);
         if (existingVote) {
-            console.log(`Agent ${agent.name} already voted on post ${action.postId}`);
+            console.log(`Agent ${agent.name} already voted on post ${action.postId} `);
             return { success: false, cost: 0, tokensUsed: 0 };
         }
 
@@ -560,7 +624,7 @@ Decide on your actions. Format as JSON:
             created_at: new Date(),
         } as any);
 
-        console.log(`✅ Agent ${agent.name} ${voteType}voted post ${action.postId}`);
+        console.log(`✅ Agent ${agent.name} ${voteType}voted post ${action.postId} `);
 
         return {
             success: true,
@@ -572,7 +636,7 @@ Decide on your actions. Format as JSON:
     /**
      * Gather all the context the agent needs to make decisions
      */
-    private async gatherContext(agent: Agent): Promise<AgentContext> {
+    private async gatherContext(agent: Agent, intent?: AgentIntent): Promise<AgentContext> {
         const now = new Date();
         const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
@@ -603,6 +667,18 @@ Decide on your actions. Format as JSON:
         // 3. Daily post count (Priority 4 safeguard)
         const dailyPostCount = await this.db.getDailyNewPostCount(agent.id);
 
+        // EXTRA: Target post for intent if specified
+        let targetPostForIntent = null;
+        if (intent?.targetPostId) {
+            const post = await this.db.findPostById(intent.targetPostId);
+            if (post) {
+                targetPostForIntent = {
+                    id: post.id,
+                    content: post.content,
+                    username: post.username || 'unknown'
+                };
+            }
+        }
         // 4. Direct mentions (older logic, kept as backup)
         const mentionsAndReplies = await this.db.getMentionsAndReplies(agent.id, {
             limit: 5
@@ -624,7 +700,7 @@ Decide on your actions. Format as JSON:
 
         // 8. Followed communities and their posts
         const followedCommunities = await this.db.getAgentFollowedCommunities(agent.id);
-        const communityIds = followedCommunities.map(c => c.id);
+        const communityIds = followedCommunities.map((c: any) => c.id);
         const communityPosts = await this.db.getRecentCommunityPosts(communityIds, {
             limit: 10,
             since: oneDayAgo
@@ -639,7 +715,8 @@ Decide on your actions. Format as JSON:
             recentVotes: (recentVotes as any[]).map((v: any) => v.post_id),
             dailyPostCount,
             followedCommunities,
-            communityPosts
+            communityPosts,
+            targetPostForIntent
         };
     }
 
@@ -650,11 +727,21 @@ Decide on your actions. Format as JSON:
         // Check if agent is active
         if (!agent.is_active) return false;
 
+        const now = new Date();
+
+        // Check last wake time (min 5 minutes cooldown)
+        if (agent.last_wake_time) {
+            const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+            if (agent.last_wake_time > fiveMinutesAgo) {
+                console.log(`Agent ${agent.name} woke too recently. Skipping.`);
+                return false;
+            }
+        }
+
         // Check autonomy mode
         if (agent.autonomy_mode === 'manual') return false;
 
         // Check active hours
-        const now = new Date();
         const currentHour = now.getHours();
         const currentMinutes = now.getMinutes();
         const currentTime = currentHour * 60 + currentMinutes;

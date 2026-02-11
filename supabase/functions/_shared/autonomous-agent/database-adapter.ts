@@ -9,7 +9,7 @@ import type {
     Vote,
     WakeLog,
     ContextPost,
-} from './types';
+} from './types.ts';
 
 export class DatabaseAdapter {
     private supabase: SupabaseClient;
@@ -55,7 +55,7 @@ export class DatabaseAdapter {
             .in('autonomy_mode', autonomyModes);
 
         if (error) throw error;
-        return data.map(a => this.transformAgent(a));
+        return data.map((a: any) => this.transformAgent(a));
     }
 
     async updateAgent(id: string, updates: Partial<Agent>): Promise<void> {
@@ -124,6 +124,8 @@ export class DatabaseAdapter {
             downvotes: p.downvotes || 0,
             replyCount: p.reply_count || 0,
             createdAt: new Date(p.created_at),
+            thread_id: p.thread_id,
+            depth: p.depth || 0,
         }));
     }
 
@@ -143,7 +145,7 @@ export class DatabaseAdapter {
         const { data, error } = await this.supabase
             .from('posts')
             .select('*, agent:agents(id, name, username)')
-            .in('parent_post_id', postIds)
+            .in('parent_id', postIds)
             .order('created_at', { ascending: false })
             .limit(options.limit);
 
@@ -157,6 +159,8 @@ export class DatabaseAdapter {
             downvotes: p.downvotes || 0,
             replyCount: p.reply_count || 0,
             createdAt: new Date(p.created_at),
+            thread_id: p.thread_id,
+            depth: p.depth || 0,
         }));
     }
 
@@ -190,13 +194,15 @@ export class DatabaseAdapter {
             downvotes: p.downvotes || 0,
             replyCount: p.reply_count || 0,
             createdAt: new Date(p.created_at),
+            thread_id: p.thread_id,
+            depth: p.depth || 0,
         }));
     }
 
     async findPostById(id: string): Promise<Post | null> {
         const { data, error } = await this.supabase
             .from('posts')
-            .select('*')
+            .select('*, agent:agents(username), profile:profiles(username)')
             .eq('id', id)
             .maybeSingle();
 
@@ -249,7 +255,7 @@ export class DatabaseAdapter {
         let query = this.supabase
             .from('posts')
             .select('*, agent:agents(id, name, username)')
-            .eq('parent_post_id', postId)
+            .eq('parent_id', postId)
             .order('created_at', { ascending: true });
 
         if (since) {
@@ -267,6 +273,8 @@ export class DatabaseAdapter {
             downvotes: p.downvotes || 0,
             replyCount: p.reply_count || 0,
             createdAt: new Date(p.created_at),
+            thread_id: p.thread_id,
+            depth: p.depth || 0,
         }));
     }
 
@@ -294,7 +302,7 @@ export class DatabaseAdapter {
             .from('posts')
             .select('*', { count: 'exact', head: true })
             .eq('agent_id', agentId)
-            .is('parent_post_id', null)
+            .is('parent_id', null)
             .gte('created_at', twentyFourHoursAgo.toISOString());
 
         if (error) throw error;
@@ -320,8 +328,11 @@ export class DatabaseAdapter {
             .from('posts')
             .insert({
                 agent_id: post.agent_id,
+                title: post.title || null,
                 content: post.content,
-                parent_post_id: post.parent_post_id || null,
+                parent_id: post.parent_id || null,
+                thread_id: post.thread_id || null,
+                depth: post.depth || 0,
                 community_id: post.community_id || null,
                 cost: post.cost || 0,
             })
@@ -502,12 +513,16 @@ export class DatabaseAdapter {
         return {
             id: data.id,
             agent_id: data.agent_id,
+            title: data.title,
             content: data.content,
             created_at: new Date(data.created_at),
             upvotes: data.upvotes || 0,
             downvotes: data.downvotes || 0,
             reply_count: data.reply_count || 0,
-            parent_post_id: data.parent_post_id,
+            parent_id: data.parent_id,
+            thread_id: data.thread_id,
+            depth: data.depth || 0,
+            username: data.agent?.username || data.profile?.username, // Map nested username
             cost: parseFloat(data.cost || 0),
         };
     }

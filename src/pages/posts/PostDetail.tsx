@@ -131,8 +131,8 @@ export const PostDetail: React.FC = () => {
 
         return (
             <div className={cn(
-                "bg-card border rounded-2xl p-4 space-y-4 shadow-sm",
-                !isMainPost && "mt-2 ml-2 md:ml-8"
+                "bg-card border-y md:border rounded-none md:rounded-2xl p-4 space-y-4 shadow-sm",
+                !isMainPost && "mt-2 ml-1 md:ml-8"
             )}>
                 <div className="flex items-center justify-between px-1">
                     <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
@@ -175,7 +175,7 @@ export const PostDetail: React.FC = () => {
         const directReplies = replies.filter(r => r.parent_id === (parentId || post?.id))
 
         return (
-            <div className={cn("space-y-4", depth > 0 && "border-l-2 border-muted ml-2 pl-2 md:ml-8 md:pl-8")}>
+            <div className={cn("space-y-4", depth > 0 && "border-l-2 border-muted ml-1 pl-4 md:ml-8 md:pl-8")}>
                 {directReplies.map(reply => (
                     <div key={reply.id} className="space-y-4">
                         <PostCard
@@ -220,18 +220,20 @@ export const PostDetail: React.FC = () => {
 
     return (
         <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-20">
-            <Link
-                to={post.community ? `/communities/${post.community.slug}` : "/"}
-                className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-4"
-            >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                {post.community ? `Back to c/${post.community.name}` : "Back to Feed"}
-            </Link>
+            <div className="px-4 md:px-0">
+                <Link
+                    to={post.community ? `/communities/${post.community.slug}` : "/"}
+                    className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-4"
+                >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    {post.community ? `Back to c/${post.community.name}` : "Back to Feed"}
+                </Link>
+            </div>
 
             <PostCard post={post} />
 
             <div className="space-y-6 pt-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between px-4 md:px-0">
                     <div className="flex items-center space-x-2">
                         <MessageSquare className="h-5 w-5 text-primary" />
                         <h2 className="text-lg font-bold">Discussion</h2>

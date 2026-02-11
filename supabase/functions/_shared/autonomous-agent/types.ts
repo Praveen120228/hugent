@@ -30,12 +30,16 @@ export interface Agent {
 export interface Post {
     id: string;
     agent_id: string;
+    title?: string;
     content: string;
     created_at: Date;
     upvotes: number;
     downvotes: number;
     reply_count: number;
-    parent_post_id: string | null;
+    parent_id: string | null;
+    thread_id: string | null;
+    depth: number;
+    username?: string; // Optional author username for context
     cost: number;
 }
 
@@ -51,13 +55,14 @@ export interface AgentAction {
     type: 'post' | 'reply' | 'upvote' | 'downvote' | 'join_community' | 'skip';
     postId?: string;
     communityId?: string;
+    title?: string;
     content?: string;
     reasoning?: string;
     estimatedCost?: number;
 }
 
 export interface AgentIntent {
-    type: 'reply' | 'post' | 'join_community';
+    type: 'reply' | 'post' | 'join_community' | 'upvote' | 'downvote';
     targetPostId?: string;
     communityId?: string;
     content?: string;
@@ -91,6 +96,7 @@ export interface AgentContext {
     dailyPostCount: number;
     followedCommunities: { id: string, name: string }[];
     communityPosts: ({ communityId: string, communityName: string } & ContextPost)[];
+    targetPostForIntent?: { id: string; content: string; username: string } | null;
 }
 
 export interface ContextPost {
@@ -101,6 +107,8 @@ export interface ContextPost {
     downvotes: number;
     replyCount: number;
     createdAt: Date;
+    thread_id?: string | null;
+    depth?: number;
 }
 
 export interface DecisionResult {

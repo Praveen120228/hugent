@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { MessageSquare, Share2, Clock, Bot, ChevronDown } from 'lucide-react'
+import { MessageSquare, Share2, Clock, Bot, ChevronDown, Trash2, MoreVertical } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { Button } from '@/components/ui/Button'
 import { VoteButtons } from './VoteButtons'
@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { agentService } from '@/services/agent.service'
 import { toast } from 'sonner'
-import type { Post } from '@/services/post.service'
+import { postService, type Post } from '@/services/post.service'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover'
 
 interface PostCardProps {
@@ -19,9 +19,10 @@ interface PostCardProps {
     isReply?: boolean
     collapseButton?: React.ReactNode
     onAgentReplied?: () => Promise<void>
+    showManagementMenu?: boolean
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, collapseButton, onAgentReplied }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, collapseButton, onAgentReplied, showManagementMenu }) => {
     const { user } = useAuth()
     const [myAgents, setMyAgents] = useState<any[]>([])
     const [showAgentMenu, setShowAgentMenu] = useState(false)
@@ -79,6 +80,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
         }
     }
 
+    const handleDelete = async () => {
+        if (!window.confirm('Are you sure you want to delete this post?')) return
+
+        try {
+            await postService.deletePost(post.id)
+            toast.success('Post deleted successfully')
+            if (onAgentReplied) {
+                await onAgentReplied()
+            } else {
+                // If no specific refresh handler, we might need a broader way to refresh
+                // But usually in these feeds, onAgentReplied or similar is passed
+                window.location.reload()
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to delete post')
+        }
+    }
+
+    const isAgentOwner = user && post.agent && post.agent.user_id === user.id
+
     const handleShare = () => {
         const url = `${window.location.origin}/posts/${post.id}`
         navigator.clipboard.writeText(url)
@@ -87,8 +108,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
 
     return (
         <div className={cn(
-            "group overflow-hidden rounded-xl border bg-card transition-all hover:border-primary/20",
-            !isReply && "hover:shadow-md",
+            "group overflow-hidden transition-all",
+            !isReply && "rounded-none md:rounded-xl border-y md:border bg-card hover:border-primary/20 hover:shadow-md",
             isReply && "border-none bg-transparent hover:bg-muted/5"
         )}>
             <div className="flex">
@@ -160,20 +181,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
 
                     {isReply ? (
                         <Link to={`/posts/${post.id}`} className="block">
-                            <h3 className="font-semibold leading-tight mb-2 text-sm md:text-base hover:text-primary transition-colors">
-                                {post.title || (post.content && post.content.substring(0, 60) + (post.content.length > 60 ? '...' : ''))}
-                            </h3>
+                            {post.title && (
+                                <h3 className="font-semibold leading-tight mb-2 text-sm md:text-base hover:text-primary transition-colors">
+                                    {post.title}
+                                </h3>
+                            )}
                             {post.content && (
-                                <p className="text-muted-foreground mt-2 text-xs line-clamp-3">
+                                <p className="text-muted-foreground mt-2 text-sm">
                                     {post.content}
                                 </p>
                             )}
                         </Link>
                     ) : (
                         <Link to={`/posts/${post.id}`} className="block">
-                            <h3 className="font-semibold leading-tight mb-2 group-hover:text-primary transition-colors text-base md:text-lg">
-                                {post.title || (post.content && post.content.substring(0, 60) + (post.content.length > 60 ? '...' : ''))}
-                            </h3>
+                            {post.title && (
+                                <h3 className="font-semibold leading-tight mb-2 group-hover:text-primary transition-colors text-base md:text-lg">
+                                    {post.title}
+                                </h3>
+                            )}
                             {post.post_type === 'image' && post.media_url && (
                                 <div className="mt-2 rounded-xl border overflow-hidden bg-muted/20 aspect-video max-h-[400px]">
                                     <img src={post.media_url} alt="Post content" className="w-full h-full object-contain" />
@@ -187,8 +212,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                                     <span className="text-sm font-medium text-primary hover:underline break-all">{post.link_url}</span>
                                 </div>
                             )}
-                            {post.content && post.title && (
-                                <p className="text-muted-foreground mt-2 text-sm line-clamp-3">
+                            {post.content && (
+                                <p className="text-muted-foreground mt-2 text-sm">
                                     {post.content}
                                 </p>
                             )}
@@ -198,9 +223,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                     <div className="mt-4 flex items-center space-x-2 md:space-x-4">
                         {!isReply && (
                             <Link to={`/posts/${post.id}`}>
-                                <Button variant="ghost" size="sm" className="h-8 space-x-2 text-muted-foreground">
+                                <Button variant="ghost" size="sm" className="h-8 md:space-x-2 text-muted-foreground">
                                     <MessageSquare className="h-4 w-4" />
-                                    <span className="text-xs font-medium">{post.reply_count || 0} Comments</span>
+                                    <span className="text-xs font-medium hidden md:inline">{post.reply_count || 0} Comments</span>
+                                    <span className="text-xs font-medium md:hidden">{post.reply_count || 0}</span>
                                 </Button>
                             </Link>
                         )}
@@ -208,34 +234,38 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 space-x-2 text-muted-foreground"
+                                className="h-8 md:space-x-2 text-muted-foreground"
                                 onClick={(e) => {
                                     e.preventDefault()
                                     onReply()
                                 }}
                             >
                                 <MessageSquare className="h-4 w-4" />
-                                <span className="text-xs font-medium">Reply</span>
+                                <span className="text-xs font-medium hidden md:inline">Reply</span>
                             </Button>
                         )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 space-x-2 text-muted-foreground"
-                            onClick={(e) => {
-                                e.preventDefault()
-                                handleShare()
-                            }}
-                        >
-                            <Share2 className="h-4 w-4" />
-                            <span className="text-xs font-medium">Share</span>
-                        </Button>
+
+                        {/* Only show standalone Share if not in management menu mode */}
+                        {!showManagementMenu && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 md:space-x-2 text-muted-foreground"
+                                onClick={(e) => {
+                                    e.preventDefault()
+                                    handleShare()
+                                }}
+                            >
+                                <Share2 className="h-4 w-4" />
+                                <span className="text-xs font-medium hidden md:inline">Share</span>
+                            </Button>
+                        )}
 
                         <Button
                             variant="ghost"
                             size="sm"
                             className={cn(
-                                "h-8 space-x-2",
+                                "h-8 md:space-x-2",
                                 isSaved ? "text-primary" : "text-muted-foreground"
                             )}
                             onClick={(e) => {
@@ -244,7 +274,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                             }}
                         >
                             <Bookmark className={cn("h-4 w-4", isSaved && "fill-current")} />
-                            <span className="text-xs font-medium">{isSaved ? 'Saved' : 'Save'}</span>
+                            <span className="text-xs font-medium hidden md:inline">{isSaved ? 'Saved' : 'Save'}</span>
                         </Button>
 
                         {/* Reply as Agent */}
@@ -254,12 +284,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 space-x-2 text-primary"
+                                        className="h-8 md:space-x-2 text-primary"
                                         disabled={!!wakingAgent}
                                     >
                                         <Bot className="h-4 w-4" />
                                         <span className="text-xs font-medium">
-                                            {wakingAgent ? 'Waking...' : 'Reply as Agent'}
+                                            {wakingAgent ? '...' : <span className="hidden md:inline">Reply as Agent</span>}
+                                            {!wakingAgent && <span className="md:hidden">Reply</span>}
                                         </span>
                                         <ChevronDown className="h-3 w-3" />
                                     </Button>
@@ -287,15 +318,55 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onReply, isReply, coll
                                 </PopoverContent>
                             </Popover>
                         )}
+
+                        {/* Management Menu (Share & Delete) */}
+                        {showManagementMenu && (
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground ml-auto">
+                                        <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-40 p-1" align="end">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full justify-start space-x-2 text-muted-foreground h-9"
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            handleShare()
+                                        }}
+                                    >
+                                        <Share2 className="h-4 w-4" />
+                                        <span className="text-xs">Share</span>
+                                    </Button>
+
+                                    {isAgentOwner && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="w-full justify-start space-x-2 text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
+                                            onClick={(e) => {
+                                                e.preventDefault()
+                                                handleDelete()
+                                            }}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="text-xs">Delete</span>
+                                        </Button>
+                                    )}
+                                </PopoverContent>
+                            </Popover>
+                        )}
                     </div>
-                </div>
-            </div>
+                </div >
+            </div >
             <SaveToCollectionModal
                 isOpen={isSaveModalOpen}
                 onClose={() => setIsSaveModalOpen(false)}
                 postId={post.id}
                 onSave={() => setIsSaved(true)}
             />
-        </div>
+        </div >
     )
 }

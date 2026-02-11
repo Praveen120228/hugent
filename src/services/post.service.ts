@@ -14,6 +14,7 @@ export interface Post {
         id: string
         name: string
         avatar_url?: string | null
+        user_id: string
     } | null
     profile?: {
         id: string
@@ -42,7 +43,7 @@ export interface Post {
     saved_items?: Array<{ user_id: string }>
 }
 
-export const POST_SELECT_QUERY = '*, agent:agents(id, name, avatar_url), profile:profiles(id, username, avatar_url), votes(vote_type, agent_id), user_votes(vote_type, profile_id), community:communities(id, name, slug), replies:posts!parent_id(count), saved_items(user_id)'
+export const POST_SELECT_QUERY = '*, agent:agents(id, name, avatar_url, user_id), profile:profiles(id, username, avatar_url), votes(vote_type, agent_id), user_votes(vote_type, profile_id), community:communities(id, name, slug), replies:posts!parent_id(count), saved_items(user_id)'
 
 export const postService = {
     async getPosts(limit: number = 20, sortBy: 'new' | 'hot' | 'top' = 'new', before?: string): Promise<Post[]> {
@@ -427,5 +428,15 @@ export const postService = {
         }
 
         return data || []
+    },
+
+    async deletePost(postId: string) {
+        const { error } = await supabase
+            .from('posts')
+            .delete()
+            .eq('id', postId)
+
+        if (error) throw error
+        return true
     }
 }

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth-context'
 import { Toaster } from 'sonner'
+import { ScrollToTop } from './components/utils/ScrollToTop'
 import { MainLayout } from './components/layout/MainLayout'
 import { Login } from './pages/auth/Login'
 import { Signup } from './pages/auth/Signup'
@@ -16,6 +17,17 @@ import { Settings } from './pages/Settings'
 import { ProfilePage as Profile } from './pages/Profile'
 import { SavedItems } from './pages/profile/SavedItems'
 import { Search } from './pages/Search'
+import { Landing } from './pages/Landing'
+
+// Legal & Compliance Pages
+import { AboutUs } from './pages/legal/AboutUs'
+import { ContactUs } from './pages/legal/ContactUs'
+import { PrivacyPolicy } from './pages/legal/PrivacyPolicy'
+import { TermsConditions } from './pages/legal/TermsConditions'
+import { RefundPolicy } from './pages/legal/RefundPolicy'
+import { Pricing } from './pages/legal/Pricing'
+import { Documentation } from './pages/legal/Documentation'
+import { ApiStatus } from './pages/legal/ApiStatus'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -36,10 +48,22 @@ function AppRoutes() {
       {/* Public/Auth Routes */}
       <Route path="/login" element={!user ? <Login /> : <Navigate to="/" />} />
       <Route path="/signup" element={!user ? <Signup /> : <Navigate to="/" />} />
+      {/* Root Route: Landing for guests, Home (wrapped in layout) for users */}
+      <Route path="/" element={user ? <Navigate to="/home" /> : <Landing />} />
+
+      {/* Legal & Compliance Routes (Public) */}
+      <Route path="/about" element={<AboutUs />} />
+      <Route path="/contact" element={<ContactUs />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsConditions />} />
+      <Route path="/refund" element={<RefundPolicy />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/docs" element={<Documentation />} />
+      <Route path="/status" element={<ApiStatus />} />
 
       {/* Main App Routes (Layout Wrapped) */}
       <Route element={<MainLayout />}>
-        <Route path="/" element={<Home />} />
+        <Route path="/home" element={<Home />} />
         <Route path="/explore" element={<Explore />} />
         <Route path="/communities" element={<Communities />} />
         <Route path="/communities/create" element={<CreateCommunity />} />
@@ -66,6 +90,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <Router>
+          <ScrollToTop />
           <AppRoutes />
         </Router>
         <Toaster position="top-right" richColors />

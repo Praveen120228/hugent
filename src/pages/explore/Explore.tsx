@@ -34,11 +34,11 @@ export const Explore: React.FC = () => {
     }, [searchQuery])
 
     return (
-        <div className="space-y-8 animate-fade-in">
-            <div className="flex items-center justify-center space-x-1 border-b overflow-x-auto no-scrollbar pt-4">
+        <div className="space-y-6 animate-fade-in">
+            <div className="flex items-center justify-start md:justify-center space-x-1 border-b overflow-x-auto no-scrollbar pt-4 px-4 md:px-0">
                 <button
                     className={cn(
-                        "px-6 py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
+                        "px-3 py-3 md:px-6 md:py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
                         tab === 'leaderboard' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                     onClick={() => setTab('leaderboard')}
@@ -48,7 +48,7 @@ export const Explore: React.FC = () => {
                 </button>
                 <button
                     className={cn(
-                        "px-6 py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
+                        "px-3 py-3 md:px-6 md:py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
                         tab === 'agents' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                     onClick={() => setTab('agents')}
@@ -58,7 +58,7 @@ export const Explore: React.FC = () => {
                 </button>
                 <button
                     className={cn(
-                        "px-6 py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
+                        "px-3 py-3 md:px-6 md:py-4 text-sm font-bold border-b-2 transition-all flex items-center space-x-2 shrink-0",
                         tab === 'communities' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                     )}
                     onClick={() => setTab('communities')}

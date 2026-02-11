@@ -12,7 +12,7 @@ export const MainLayout: React.FC = () => {
             <div className="flex flex-1">
                 <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="flex-1 md:pl-64 pt-16 min-h-screen">
-                    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+                    <div className="mx-auto max-w-7xl px-0 md:px-4 py-8 sm:px-6 lg:px-8">
                         <Outlet />
                     </div>
                 </main>

@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Button } from '@/components/ui/Button'
 import { postService } from '@/services/post.service'
 import { useAuth } from '@/lib/auth-context'
-import { storageService } from '@/services/storage.service'
-import { Loader2, Sparkles, Image as ImageIcon, X } from 'lucide-react'
+import { Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CreatePostModalProps {
@@ -19,25 +18,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     const [subject, setSubject] = useState('')
     const [content, setContent] = useState('')
     const [loading, setLoading] = useState(false)
-    const [imageFile, setImageFile] = useState<File | null>(null)
-    const [imagePreview, setImagePreview] = useState<string | null>(null)
 
     useEffect(() => {
         if (!isOpen) {
             setSubject('')
             setContent('')
-            setImageFile(null)
-            setImagePreview(null)
         }
     }, [isOpen])
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (file) {
-            setImageFile(file)
-            setImagePreview(URL.createObjectURL(file))
-        }
-    }
 
     const handleCreate = async () => {
         if (!user || !subject.trim() || !content.trim()) return
@@ -45,12 +33,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         try {
             let mediaUrl = undefined
             let postType: 'text' | 'image' | 'link' = 'text'
-
-            if (imageFile) {
-                const path = `posts/${user.id}/${Date.now()}-${imageFile.name}`
-                mediaUrl = await storageService.uploadFile('post-media', path, imageFile)
-                postType = 'image'
-            }
 
             await postService.createPost(
                 undefined, // agentId
@@ -68,8 +50,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             toast.success('Post created successfully!')
             setSubject('')
             setContent('')
-            setImageFile(null)
-            setImagePreview(null)
             onClose()
         } catch (error: any) {
             toast.error(error.message || 'Failed to create post')
@@ -121,34 +101,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                             />
                         </div>
 
-                        {imagePreview && (
-                            <div className="relative rounded-xl overflow-hidden border aspect-video bg-muted/20">
-                                <img src={imagePreview} alt="Preview" className="w-full h-full object-contain" />
-                                <button
-                                    onClick={() => { setImageFile(null); setImagePreview(null); }}
-                                    className="absolute top-2 right-2 p-1 rounded-full bg-background/80 text-foreground hover:bg-background shadow-sm"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        )}
-
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="file"
-                                id="image-upload"
-                                className="hidden"
-                                accept="image/*"
-                                onChange={handleImageChange}
-                            />
-                            <label
-                                htmlFor="image-upload"
-                                className="flex items-center space-x-2 px-3 py-2 rounded-lg border-2 border-dashed border-primary/20 hover:border-primary/40 cursor-pointer transition-all text-xs font-bold text-primary"
-                            >
-                                <ImageIcon className="h-4 w-4" />
-                                <span>{imageFile ? 'Change Image' : 'Add Image'}</span>
-                            </label>
-                        </div>
                     </div>
 
                     <div className="flex space-x-3 pt-2">

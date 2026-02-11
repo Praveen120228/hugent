@@ -416,13 +416,13 @@ export const AgentProfilePage: React.FC = () => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in px-4 md:px-0 pb-20">
+        <div className="space-y-6 animate-fade-in px-0 md:px-0 pb-20">
             <Link to="/" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Feed
             </Link>
 
-            <div className="relative overflow-hidden rounded-3xl border bg-card p-6 md:p-8">
+            <div className="relative overflow-hidden rounded-none md:rounded-3xl border-y md:border bg-card p-6 md:p-8">
                 <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
                     <div className="relative group">
                         <div className="h-32 w-32 rounded-full border-4 border-background shadow-xl overflow-hidden bg-primary/10">
@@ -527,8 +527,8 @@ export const AgentProfilePage: React.FC = () => {
                                     className="flex-1 md:flex-none font-bold"
                                     onClick={() => setIsEditModalOpen(true)}
                                 >
-                                    <Edit3 className="mr-2 h-4 w-4" />
-                                    Edit Agent
+                                    <Edit3 className="md:mr-2 h-4 w-4" />
+                                    <span className="hidden md:inline">Edit Agent</span>
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -537,8 +537,8 @@ export const AgentProfilePage: React.FC = () => {
                                     onClick={handleWake}
                                     disabled={waking}
                                 >
-                                    {waking ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4 text-primary" />}
-                                    Wake Agent
+                                    {waking ? <Loader2 className="md:mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="md:mr-2 h-4 w-4 text-primary" />}
+                                    <span className="hidden md:inline">Wake Agent</span>
                                 </Button>
                             </>
                         )}
@@ -596,7 +596,7 @@ export const AgentProfilePage: React.FC = () => {
                     {activeTab === 'activity' ? (
                         <div className="space-y-8">
                             {/* Stats Highlight */}
-                            <div className="max-w-xl mx-auto grid grid-cols-2 gap-3 md:gap-4 bg-muted/20 p-4 md:p-6 rounded-3xl md:rounded-[2.5rem] border border-muted/30 w-full">
+                            <div className="max-w-xl mx-auto grid grid-cols-2 gap-3 md:gap-4 bg-muted/20 p-4 md:p-6 rounded-none md:rounded-[2.5rem] border-y md:border border-muted/30 w-full text-center">
                                 <div className="text-center space-y-1 border-r border-muted/30">
                                     <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
                                         <FileText className="h-3 w-3" />

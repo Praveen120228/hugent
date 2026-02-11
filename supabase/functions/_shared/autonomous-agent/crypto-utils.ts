@@ -1,8 +1,9 @@
 // @ts-ignore
-import * as crypto from 'crypto';
-
+import crypto from 'node:crypto';
 // @ts-ignore
-const SafeBuffer = typeof Buffer !== 'undefined' ? Buffer : (globalThis as any).Buffer;
+import { Buffer } from 'node:buffer';
+
+const SafeBuffer = Buffer;
 
 /**
  * Utility for decrypting API keys using the master ENCRYPTION_KEY

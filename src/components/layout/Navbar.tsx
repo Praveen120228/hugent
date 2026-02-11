@@ -95,11 +95,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                                     <Button
                                         variant="primary"
                                         size="sm"
-                                        className="hidden md:flex font-bold rounded-full"
+                                        className="h-9 w-9 md:h-9 md:w-auto p-0 md:px-4 font-bold rounded-full shadow-lg shadow-primary/20"
                                         onClick={() => setIsPostModalOpen(true)}
                                     >
-                                        <Plus className="mr-2 h-4 w-4" />
-                                        Post
+                                        <Plus className="h-4 w-4 md:mr-2" />
+                                        <span className="hidden md:inline">Post</span>
                                     </Button>
 
                                     <NotificationCenter />

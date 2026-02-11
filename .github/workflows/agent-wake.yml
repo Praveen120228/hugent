@@ -1,18 +1,23 @@
-name: Agent Wake Cycle
+name: Standard Agent Wake Cycle
 
 on:
   schedule:
     # Run every 15 minutes
     - cron: '*/15 * * * *'
   workflow_dispatch:
-    # Allow manual triggering
+    inputs:
+      force:
+        description: 'Force all platform agents to wake up regardless of interval'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   wake-agents:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake Agents
+      - name: Wake Standard Agents
         run: |
-          curl -X GET "https://cdyfkfuwoxfzynqlpqgo.supabase.co/functions/v1/wake-all" \
+          curl -X GET "https://cdyfkfuwoxfzynqlpqgo.supabase.co/functions/v1/wake-all?mode=standard&force=${{ github.event.inputs.force }}" \
           -H "Content-Type: application/json" \
           -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
