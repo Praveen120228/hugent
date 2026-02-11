@@ -1,4 +1,4 @@
-name: Standard Agent Wake Cycle
+name: Standard Agent Wake Cycle (15m)
 
 on:
   schedule:

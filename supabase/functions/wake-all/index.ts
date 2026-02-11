@@ -55,44 +55,55 @@ serve(async (req: Request) => {
 
         // 1. Fetch active agents
         // We fetch id, name, last_wake_time, and autonomy_mode/interval to perform precision filtering
-        let query = supabase
+        const { data: agents, error: fetchError } = await supabase
             .from('agents')
-            .select('id, name, last_wake_time, autonomy_interval, autonomy_mode')
+            .select('id, name, last_wake_time, autonomy_interval, autonomy_mode, user_id')
             .eq('is_active', true)
             .limit(1000);
 
-        if (isForced) {
-            // No additional filtering if forced
-        } else if (mode === 'priority') {
-            // Priority mode: Only target 'full' autonomy agents (which we set to 5 min interval)
-            query = query.eq('autonomy_mode', 'full');
-        } else {
-            // Standard mode (15m): Target agents in automated modes (scheduled/full/manual-automated)
-            // We'll filter based on their individual intervals in memory for precision
-            query = query.in('autonomy_mode', ['scheduled', 'full']);
-        }
-
-        const { data: agents, error: fetchError } = await query;
-
         if (fetchError) throw fetchError;
 
-        // 2. Filter agents based on interval (Skip if forced)
+        // 2. Fetch subscriptions for these users to check plans
+        const userIds = [...new Set((agents as any[] || []).map(a => a.user_id))];
+        const { data: subs } = await supabase
+            .from('subscriptions')
+            .select('user_id, plan_id')
+            .in('user_id', userIds);
+
+        const planMap = new Map((subs || []).map(s => [s.user_id, s.plan_id]));
+
+        // 3. Filter agents based on interval and plan
         const now = new Date();
         const activeAgents = (agents as any[] || []).filter(agent => {
             if (isForced) return true;
 
-            // If it's priority mode, we already filtered for 'full' in query, so they are all due
-            if (mode === 'priority') return true;
+            const planId = planMap.get(agent.user_id) || 'starter';
+            const isProOrOrg = planId === 'pro' || planId === 'organization';
 
-            // Frequency check for standard mode (15m cron)
-            if (!agent.last_wake_time) return true; // Never woken? Wake now.
+            if (mode === 'priority') {
+                // Priority mode (5m): ONLY target agents with 5 min interval
+                // This is reserved for Pro/Org users in Full Autonomy mode
+                return agent.autonomy_interval === 5 && isProOrOrg;
+            } else {
+                // Standard mode (15m): Target agents in automated modes (scheduled/full)
+                // Filter out if they are manual or specifically set to 5m (which priority cron handles)
+                if (!['scheduled', 'full'].includes(agent.autonomy_mode)) return false;
+                if (agent.autonomy_interval === 5 && isProOrOrg) return false;
 
-            const lastWake = new Date(agent.last_wake_time);
-            const diffMs = now.getTime() - lastWake.getTime();
-            const diffMin = Math.floor(diffMs / 60000);
+                // Frequency check for skipping logic
+                if (!agent.last_wake_time) return true;
 
-            // Return true if the minutes elapsed is >= the agent's specific interval
-            return diffMin >= (agent.autonomy_interval || 15);
+                const lastWake = new Date(agent.last_wake_time);
+                const diffMs = now.getTime() - lastWake.getTime();
+                const diffMin = Math.floor(diffMs / 60000);
+
+                // Skip logic: only return true if the elapsed time matches or exceeds the interval
+                // This allows 30m agents to be ignored for 1 cycle, and 60m for 3 cycles of a 15m cron.
+                const minAllowedInterval = isProOrOrg ? 5 : 15;
+                const effectiveInterval = Math.max(agent.autonomy_interval || 15, minAllowedInterval);
+
+                return diffMin >= (effectiveInterval - 1); // -1 for buffer against timing drift
+            }
         });
 
         console.log(`[GLOBAL] [${mode.toUpperCase()}] ${isForced ? 'FORCED ' : ''}Bulk wake starting for ${activeAgents.length} agents across the platform`);

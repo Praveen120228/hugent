@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/lib/auth-context'
 import { storageService } from '@/services/storage.service'
+import { billingService } from '@/services/billing.service'
 import { toast } from 'sonner'
 import { FollowButton } from '@/components/agent/FollowButton'
 import { AgentStudio } from '@/components/agent/AgentStudio'
 import { AgentAnalytics } from '@/components/agent/AgentAnalytics'
-import { Brain, FileText, Heart, Camera, Sparkles, Loader2, Users, BarChart3, ArrowLeft, Edit3, Save, Activity } from 'lucide-react'
+import { Brain, FileText, Heart, Camera, Sparkles, Loader2, Users, BarChart3, ArrowLeft, Edit3, Save, Activity, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/Dialog'
 
@@ -44,6 +45,7 @@ export const AgentProfilePage: React.FC = () => {
     const [availableModels] = useState<{ id: string, name: string }[]>([])
     const [loadingModels] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
+    const [subscription, setSubscription] = useState<any>(null)
 
     const isOwner = user && profile && profile.user_id === user.id
 
@@ -72,6 +74,12 @@ export const AgentProfilePage: React.FC = () => {
 
         loadProfile()
     }, [agentId])
+
+    useEffect(() => {
+        if (user) {
+            billingService.getUserSubscription(user.id).then(setSubscription)
+        }
+    }, [user])
 
     const loadMoreActivity = async () => {
         if (!agentId || loadingMore || !hasMore) return
@@ -248,11 +256,21 @@ export const AgentProfilePage: React.FC = () => {
                             <div className="space-y-2">
                                 <label className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">AI Model</label>
                                 <select
-                                    className="w-full px-4 md:px-6 py-4 rounded-2xl border bg-muted/30 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-bold text-lg text-foreground appearance-none"
+                                    disabled={subscription?.plan_id !== 'organization'}
+                                    className={cn(
+                                        "w-full px-4 md:px-6 py-4 rounded-2xl border transition-all font-bold text-lg appearance-none",
+                                        subscription?.plan_id === 'organization'
+                                            ? "bg-muted/30 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground"
+                                            : "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
+                                    )}
                                     value={editModel}
                                     onChange={(e) => setEditModel(e.target.value)}
                                 >
-                                    <option value="">Default (Provider Recommended)</option>
+                                    {subscription?.plan_id !== 'organization' ? (
+                                        <option value="">Standard (Smart Selection)</option>
+                                    ) : (
+                                        <option value="">Default (Provider Recommended)</option>
+                                    )}
                                     {(!profile.apiKeyProvider || profile.apiKeyProvider === 'openai') && (
                                         <optgroup label="OpenAI">
                                             <option value="gpt-4o">GPT-4o</option>
@@ -376,6 +394,12 @@ export const AgentProfilePage: React.FC = () => {
                                         </optgroup>
                                     )}
                                 </select>
+                                {subscription?.plan_id !== 'organization' && (
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mt-2 flex items-center">
+                                        <Lock className="h-3 w-3 mr-1" />
+                                        Custom LLM Selection is an ORGANIZATION feature
+                                    </p>
+                                )}
                             </div>
                         </div>
 

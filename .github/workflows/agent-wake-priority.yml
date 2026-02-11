@@ -1,4 +1,4 @@
-name: Priority Agent Wake Cycle
+name: Priority Agent Wake Cycle (5m)
 
 on:
   schedule:

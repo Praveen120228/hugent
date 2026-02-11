@@ -7,8 +7,9 @@ import { useAuth } from '@/lib/auth-context'
 import { toast } from 'sonner'
 import {
     Loader2, Save, Zap, Clock, DollarSign, Moon, Sun,
-    Activity, AlertCircle, Shield, Key
+    Activity, AlertCircle, Shield, Key, Lock
 } from 'lucide-react'
+import { billingService, type Subscription } from '@/services/billing.service'
 
 interface AutonomySettingsProps {
     profile: AgentProfile
@@ -22,6 +23,8 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
     const [saving, setSaving] = useState(false)
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
     const [selectedApiKeyId, setSelectedApiKeyId] = useState(profile.api_key_id || '')
+    const [subscription, setSubscription] = useState<Subscription | null>(null)
+    const [planLimits, setPlanLimits] = useState(billingService.getPlanLimits(undefined))
 
     // Autonomy settings state
     const [autonomyMode, setAutonomyMode] = useState<AutonomyMode>((profile.autonomy_mode as AutonomyMode) || 'manual')
@@ -30,6 +33,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
     const [activeHoursStart, setActiveHoursStart] = useState(profile.active_hours_start || '09:00:00')
     const [activeHoursEnd, setActiveHoursEnd] = useState(profile.active_hours_end || '23:00:00')
     const [autonomyInterval, setAutonomyInterval] = useState(profile.autonomy_interval || 15)
+    const [isActive, setIsActive] = useState(profile.is_active ?? true)
 
     // Load user's API keys
     useEffect(() => {
@@ -37,10 +41,15 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
             apiKeyService.getApiKeys(user.id).then(keys => {
                 setApiKeys(keys)
             }).catch(err => {
-                // Ignore AbortErrors (happens when component unmounts)
                 if (err.name !== 'AbortError') {
                     console.error('Failed to load API keys:', err)
                 }
+            })
+
+            // Load subscription
+            billingService.getUserSubscription(user.id).then(sub => {
+                setSubscription(sub)
+                setPlanLimits(billingService.getPlanLimits(sub?.plan_id))
             })
         }
     }, [user])
@@ -56,6 +65,7 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                 active_hours_end: activeHoursEnd,
                 autonomy_interval: autonomyInterval,
                 api_key_id: selectedApiKeyId,
+                is_active: isActive,
             }
 
             await agentService.updateAgent(profile.id, updates as any)
@@ -110,9 +120,20 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                         <Activity className="h-6 w-6 text-primary" />
                         <h3 className="text-xl font-bold">Agent Activity Status</h3>
                     </div>
-                    <Badge variant={profile.is_active ? 'default' : 'outline'}>
-                        {profile.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
+                    <div className="flex items-center space-x-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="sr-only peer"
+                                checked={isActive}
+                                onChange={(e) => setIsActive(e.target.checked)}
+                            />
+                            <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                        <Badge variant={isActive ? 'default' : 'outline'} className={isActive ? 'bg-green-500' : ''}>
+                            {isActive ? 'Active' : 'Paused'}
+                        </Badge>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -204,23 +225,36 @@ export const AutonomySettings: React.FC<AutonomySettingsProps> = ({ profile, onU
                     <div className="mt-8 pt-6 border-t border-border/50">
                         <label className="text-sm font-black uppercase tracking-widest text-primary mb-4 block">Wake Frequency</label>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {[5, 15, 30, 60].map((int) => (
-                                <button
-                                    key={int}
-                                    onClick={() => setAutonomyInterval(int)}
-                                    className={`
-                                        py-3 px-4 rounded-xl border-2 transition-all font-bold text-sm
-                                        ${autonomyInterval === int
-                                            ? 'border-primary bg-primary/10 text-primary'
-                                            : 'border-border bg-background hover:border-primary/30'}
-                                    `}
-                                >
-                                    {int} Minutes
-                                </button>
-                            ))}
+                            {[5, 15, 30, 60].map((int) => {
+                                const isLocked = int < planLimits.minInterval
+                                return (
+                                    <button
+                                        key={int}
+                                        disabled={isLocked}
+                                        onClick={() => setAutonomyInterval(int)}
+                                        className={`
+                                            relative py-3 px-4 rounded-xl border-2 transition-all font-bold text-sm flex items-center justify-center
+                                            ${autonomyInterval === int
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : isLocked
+                                                    ? 'border-border bg-muted/50 text-muted-foreground cursor-not-allowed'
+                                                    : 'border-border bg-background hover:border-primary/30'}
+                                        `}
+                                    >
+                                        {isLocked && <Lock className="h-3 w-3 mr-2 text-amber-500" />}
+                                        {int} Minutes
+                                    </button>
+                                )
+                            })}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-3">
+                        <p className="text-xs text-muted-foreground mt-3 flex items-center">
                             {autonomyInterval === 5 ? 'Priority Tier: Accelerated cycles for real-time interaction.' : `Standard Tier: Efficient polling every ${autonomyInterval} minutes.`}
+                            {subscription?.plan_id !== 'pro' && subscription?.plan_id !== 'organization' && (
+                                <span className="ml-2 text-amber-600 font-bold flex items-center">
+                                    <Zap className="h-3 w-3 mr-1" />
+                                    Upgrade to PRO for 5m cycles!
+                                </span>
+                            )}
                         </p>
                     </div>
                 )}

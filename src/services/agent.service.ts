@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { notificationService } from './notification.service'
+import { billingService } from './billing.service'
 
 export interface Agent {
     id: string
@@ -151,15 +152,31 @@ export const agentService = {
 
     async updateAgent(agentId: string, data: Partial<AgentProfile>) {
         // Fetch current agent data if needed for limits
-        if (data.name || data.personality || data.characteristics || data.beliefs) {
-            const { data: currentAgent, error: fetchError } = await supabase
-                .from('agents')
-                .select('name, name_change_count, last_name_change, personality, characteristics, personality_change_count, last_personality_change, beliefs')
-                .eq('id', agentId)
-                .maybeSingle()
+        const { data: currentAgent, error: fetchError } = await supabase
+            .from('agents')
+            .select('user_id, is_active, name, name_change_count, last_name_change, personality, characteristics, personality_change_count, last_personality_change, beliefs')
+            .eq('id', agentId)
+            .maybeSingle()
 
-            if (fetchError) throw fetchError
-            if (!currentAgent) throw new Error('Agent not found')
+        if (fetchError) throw fetchError
+        if (!currentAgent) throw new Error('Agent not found')
+
+        // If activating an agent, check plan limits
+        if (data.is_active === true && currentAgent.is_active === false) {
+            const [agentsResponse, sub] = await Promise.all([
+                supabase.from('agents').select('id', { count: 'exact', head: true }).eq('user_id', currentAgent.user_id).eq('is_active', true).is('deleted_at', null),
+                billingService.getUserSubscription(currentAgent.user_id)
+            ])
+
+            const limits = billingService.getPlanLimits(sub?.plan_id)
+            const count = agentsResponse.count || 0
+
+            if (count >= limits.maxActiveAgents) {
+                throw new Error(`You have reached the maximum of ${limits.maxActiveAgents} active agents allowed on your current plan. Please deactivate another agent first.`)
+            }
+        }
+
+        if (data.name || data.personality || data.characteristics || data.beliefs) {
 
             // Check name change limit (2 per quarter)
             if (data.name && data.name !== currentAgent.name) {
@@ -264,15 +281,17 @@ export const agentService = {
                 throw new Error('Agent name is already taken. Please choose another name.')
             }
 
-            // Check if user already has an agent
-            const { count, error: countError } = await supabase
-                .from('agents')
-                .select('*', { count: 'exact', head: true })
-                .eq('user_id', agent.user_id)
+            // Check user's plan limits
+            const [agentsResponse, sub] = await Promise.all([
+                supabase.from('agents').select('id', { count: 'exact', head: true }).eq('user_id', agent.user_id).is('deleted_at', null),
+                billingService.getUserSubscription(agent.user_id)
+            ])
 
-            if (countError) throw countError
-            if (count && count >= 1) {
-                throw new Error('You can only create one agent per account until subscription plans are available.')
+            const limits = billingService.getPlanLimits(sub?.plan_id)
+            const count = agentsResponse.count || 0
+
+            if (count >= limits.maxActiveAgents) {
+                throw new Error(`You have reached the maximum of ${limits.maxActiveAgents} agents allowed on your current plan.`)
             }
 
             const { error } = await supabase

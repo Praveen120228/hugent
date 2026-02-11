@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
-import { agentService, type Agent } from '@/services/agent.service'
+import { agentService } from '@/services/agent.service'
 import { apiKeyService, type ApiKey } from '@/services/api-key.service'
+import { billingService, type Subscription } from '@/services/billing.service'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { toast } from 'sonner'
-import { Bot, Key, Sparkles, ArrowRight, Loader2, Check, X, AlertCircle } from 'lucide-react'
+import { Bot, Key, Sparkles, ArrowRight, Loader2, Check, X, AlertCircle, Clock, Zap, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const STEPS = [
@@ -94,8 +95,10 @@ export const CreateAgent: React.FC = () => {
     const [currentStep, setCurrentStep] = useState(1)
     const [loading, setLoading] = useState(false)
     const [fetchingAgents, setFetchingAgents] = useState(true)
-    const [existingAgent, setExistingAgent] = useState<Agent | null>(null)
     const [validatingKey, setValidatingKey] = useState(false)
+    const [subscription, setSubscription] = useState<Subscription | null>(null)
+    const [planLimits, setPlanLimits] = useState(billingService.getPlanLimits(undefined))
+    const [limitReached, setLimitReached] = useState(false)
 
     // Form State
     const [name, setName] = useState('')
@@ -104,7 +107,6 @@ export const CreateAgent: React.FC = () => {
     const [apiKey, setApiKey] = useState('')
     const [isValidKey, setIsValidKey] = useState(false)
     const [dynamicModels, setDynamicModels] = useState<{ id: string, name: string }[]>([])
-    const [fetchingModels, setFetchingModels] = useState(false)
 
     // Existing Keys State
     const [useExistingKey, setUseExistingKey] = useState(false)
@@ -114,21 +116,28 @@ export const CreateAgent: React.FC = () => {
     const [characteristics, setCharacteristics] = useState<string[]>([])
     const [customChar, setCustomChar] = useState('')
     const [personality, setPersonality] = useState('')
+    const [autonomyMode, setAutonomyMode] = useState<'manual' | 'scheduled' | 'full'>('scheduled')
+    const [autonomyInterval, setAutonomyInterval] = useState(15)
 
-    // Fetch user keys on mount
+    // Fetch user keys and agents on mount
     React.useEffect(() => {
         if (user) {
             apiKeyService.getApiKeys(user.id).then(setUserKeys)
 
-            // Fetch existing agents to check limit
+            // Fetch agents and plan limits
             setFetchingAgents(true)
-            agentService.getUserAgents(user.id)
-                .then(agents => {
-                    if (agents && agents.length > 0) {
-                        setExistingAgent(agents[0])
-                    }
-                })
-                .finally(() => setFetchingAgents(false))
+            Promise.all([
+                agentService.getUserAgents(user.id),
+                billingService.getUserSubscription(user.id)
+            ]).then(([agents, sub]) => {
+                const limits = billingService.getPlanLimits(sub?.plan_id)
+                setPlanLimits(limits)
+                setSubscription(sub)
+
+                if (agents && agents.length >= limits.maxActiveAgents) {
+                    setLimitReached(true)
+                }
+            }).finally(() => setFetchingAgents(false))
         }
     }, [user])
 
@@ -141,38 +150,15 @@ export const CreateAgent: React.FC = () => {
         setSelectedKeyId('')
     }
 
-    const fetchDynamicModels = async () => {
-        if (!['gemini', 'google', 'openai'].includes(provider)) return
-
-        setFetchingModels(true)
-        try {
-            // We use the same backend listing logic, but we might need a temp way to call it before the agent is created
-            // Or we just fetch directly if possible, or use the provider directly.
-            // Since our /list-models expects agentId, we'll need a way to list by provider + key.
-            // For now, let's just stick to the static list or update the proxy to handle direct lists.
-
-            // Actually, for CreateAgent, it's better to show the comprehensive static list we just updated 
-            // until we have a "list-models-by-key" endpoint.
-        } catch (error) {
-            console.error('Failed to fetch dynamic models:', error)
-        } finally {
-            setFetchingModels(false)
-        }
-    }
-
     const validateApiKey = async () => {
         if (!apiKey) return
         setValidatingKey(true)
         try {
-            // In a real app, we would make a test call to the provider here
-            // For now, we simulate validation
             await new Promise(resolve => setTimeout(resolve, 1500))
             if (apiKey.length < 10) throw new Error('Invalid API key format')
 
             setIsValidKey(true)
             toast.success('API key validated successfully!')
-            // Fetch models after validation
-            fetchDynamicModels()
         } catch (error: any) {
             setIsValidKey(false)
             toast.error(error.message || 'Invalid API key')
@@ -273,7 +259,6 @@ export const CreateAgent: React.FC = () => {
         try {
             let finalApiKeyId = selectedKeyId
 
-            // 1. Create API Key record IF validating new key
             if (!useExistingKey) {
                 const newKey = await apiKeyService.createApiKey(
                     user.id,
@@ -285,26 +270,18 @@ export const CreateAgent: React.FC = () => {
                 finalApiKeyId = newKey.id
             }
 
-            // 2. Create Agent
-            // Using a special create method or manual insert if createAgent isn't exposed
-            // Since createAgent function likely doesn't exist yet based on previous search, 
-            // we will use the updateAgent pattern but as an insert in the service
-            // OR assuming user meant 'create' as 'insert'
-
-            // NOTE: We need to implement createAgent in agent.service.ts
-            // For now, let's assume agentService.createAgent exists or we add it
             await agentService.createAgent({
                 user_id: user.id,
                 name,
                 personality,
                 model,
                 api_key_id: finalApiKeyId,
-                characteristics: characteristics, // We added this column
+                characteristics: characteristics,
                 is_primary: false
             })
 
             toast.success('Agent created successfully!')
-            navigate('/settings') // Or to the new agent's profile
+            navigate('/settings')
         } catch (error: any) {
             console.error('Creation error:', error)
             toast.error(error.message || 'Failed to create agent')
@@ -351,26 +328,31 @@ export const CreateAgent: React.FC = () => {
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                     <p className="text-muted-foreground font-bold italic">Checking agent status...</p>
                 </div>
-            ) : existingAgent ? (
+            ) : limitReached ? (
                 <div className="bg-card border rounded-[2rem] p-12 shadow-xl text-center space-y-6 animate-in zoom-in-95 duration-500">
-                    <div className="inline-flex items-center justify-center p-4 rounded-3xl bg-orange-500/10 mb-2">
-                        <AlertCircle className="h-10 w-10 text-orange-500" />
+                    <div className="inline-flex items-center justify-center p-4 rounded-3xl bg-amber-500/10 mb-2">
+                        <AlertCircle className="h-10 w-10 text-amber-500" />
                     </div>
-                    <div>
+                    <div className="max-w-md mx-auto">
                         <h2 className="text-2xl font-black mb-2">Agent Limit Reached</h2>
-                        <p className="text-muted-foreground max-w-md mx-auto">
-                            You already have an agent named <span className="text-foreground font-bold">@{existingAgent.name}</span>.
-                            Multi-agent support will be available soon with our premium subscription plans.
+                        <p className="text-muted-foreground mb-4">
+                            You've reached the maximum of <span className="text-foreground font-bold">{planLimits.maxActiveAgents} agents</span> for your <span className="text-primary font-bold uppercase tracking-wider">{subscription?.plan_id || 'Starter'}</span> plan.
                         </p>
+                        <div className="bg-primary/5 rounded-2xl p-4 border border-primary/20 text-left mb-6">
+                            <p className="text-xs font-bold text-primary uppercase mb-2">Pro Tip</p>
+                            <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                                Upgrade to <span className="text-foreground font-bold">Pro</span> to manage up to 5 agents, or <span className="text-foreground font-bold">Organization</span> for unlimited autonomous entities.
+                            </p>
+                        </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
                         <Button
                             variant="primary"
                             size="lg"
                             className="rounded-xl font-bold px-8 w-full sm:w-auto shadow-lg shadow-primary/20"
-                            onClick={() => navigate(`/agents/${existingAgent.id}`)}
+                            onClick={() => navigate('/settings?tab=billing')}
                         >
-                            View My Agent
+                            Upgrade Plan
                         </Button>
                         <Button
                             variant="outline"
@@ -378,7 +360,7 @@ export const CreateAgent: React.FC = () => {
                             className="rounded-xl font-bold px-8 w-full sm:w-auto"
                             onClick={() => navigate('/settings')}
                         >
-                            Settings
+                            Manage Agents
                         </Button>
                     </div>
                 </div>
@@ -441,14 +423,8 @@ export const CreateAgent: React.FC = () => {
                                             }
                                             value={model}
                                             onChange={setModel}
-                                            disabled={fetchingModels}
+                                            disabled={false}
                                         />
-                                        {fetchingModels && (
-                                            <div className="flex items-center mt-1 text-[10px] text-muted-foreground animate-pulse">
-                                                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                                Refreshing models...
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 
@@ -621,6 +597,70 @@ export const CreateAgent: React.FC = () => {
                                             {personality.length}/1000
                                         </span>
                                     </div>
+                                </div>
+
+                                <div className="space-y-4 pt-6 border-t">
+                                    <label className="text-sm font-bold ml-1">Autonomy Settings</label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { value: 'manual', label: 'Manual', icon: Bot },
+                                            { value: 'scheduled', label: 'Scheduled', icon: Clock },
+                                            { value: 'full', label: 'Full', icon: Zap }
+                                        ].map((m) => {
+                                            const isSelected = autonomyMode === m.value
+                                            return (
+                                                <button
+                                                    key={m.value}
+                                                    onClick={() => {
+                                                        setAutonomyMode(m.value as any)
+                                                        if (m.value === 'full') setAutonomyInterval(5)
+                                                        else if (m.value === 'scheduled') setAutonomyInterval(15)
+                                                    }}
+                                                    className={cn(
+                                                        "flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2",
+                                                        isSelected ? "border-primary bg-primary/5 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/30"
+                                                    )}
+                                                >
+                                                    <m.icon className="h-5 w-5" />
+                                                    <span className="text-xs font-bold">{m.label}</span>
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {autonomyMode !== 'manual' && (
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Wake Every</label>
+                                                {subscription?.plan_id === 'starter' && (
+                                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full flex items-center">
+                                                        <Lock className="h-2.5 w-2.5 mr-1" />
+                                                        5m requires Pro
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-4 gap-2">
+                                                {[5, 15, 30, 60].map((int) => {
+                                                    const isLocked = int < planLimits.minInterval
+                                                    const isSelected = autonomyInterval === int
+                                                    return (
+                                                        <button
+                                                            key={int}
+                                                            disabled={isLocked}
+                                                            onClick={() => setAutonomyInterval(int)}
+                                                            className={cn(
+                                                                "py-2 rounded-xl border font-bold text-xs transition-all",
+                                                                isSelected ? "bg-primary text-primary-foreground border-primary" :
+                                                                    isLocked ? "bg-muted text-muted-foreground cursor-not-allowed opacity-50" : "bg-background border-border hover:border-primary/50"
+                                                            )}
+                                                        >
+                                                            {int}m
+                                                        </button>
+                                                    )
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

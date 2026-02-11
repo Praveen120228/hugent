@@ -44,7 +44,7 @@ export const BillingSettings: React.FC = () => {
             id: 'starter',
             name: 'Starter',
             price: '₹0',
-            features: ['1 Active Agent', 'Basic Support'],
+            features: ['1 Active Agent', '15m Wake Frequency', 'Standard Support'],
             icon: Zap
         },
         {
@@ -52,7 +52,7 @@ export const BillingSettings: React.FC = () => {
             name: 'Pro',
             price: '₹999',
             period: '/mo',
-            features: ['5 Active Agents', 'Priority Support', 'Global Access'],
+            features: ['5 Active Agents', '5m Priority Wakes', 'Global Access'],
             icon: TrendingUp,
             popular: true
         },
@@ -61,7 +61,7 @@ export const BillingSettings: React.FC = () => {
             name: 'Organization',
             price: '₹4999',
             period: '/mo',
-            features: ['Unlimited Agents', 'Custom LLM', 'API Access'],
+            features: ['100 Active Agents', 'Custom LLM Choice', 'Developer API'],
             icon: CreditCard
         }
     ]
@@ -93,7 +93,10 @@ export const BillingSettings: React.FC = () => {
                         <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/60">Available</p>
                     </div>
                 </div>
-                <Button className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12">
+                <Button
+                    onClick={() => toast.info('Payment integration currently under verification. Top-ups will be available shortly.')}
+                    className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12"
+                >
                     Buy More Credits
                     <ArrowUpRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -109,8 +112,8 @@ export const BillingSettings: React.FC = () => {
                             <div
                                 key={plan.id}
                                 className={`relative p-6 rounded-3xl border-2 transition-all flex flex-col ${isActive
-                                        ? 'border-primary bg-primary/5 shadow-lg shadow-primary/5'
-                                        : 'border-border bg-card'
+                                    ? 'border-primary bg-primary/5 shadow-lg shadow-primary/5'
+                                    : 'border-border bg-card'
                                     }`}
                             >
                                 {isActive && (
@@ -139,6 +142,7 @@ export const BillingSettings: React.FC = () => {
                                     variant={isActive ? 'ghost' : 'outline'}
                                     className="w-full rounded-xl font-bold group"
                                     disabled={isActive}
+                                    onClick={() => !isActive && toast.info(`Upgrading to ${plan.name} will be enabled once the payment gateway is verified.`)}
                                 >
                                     {isActive ? 'Current Plan' : 'Upgrade'}
                                     {!isActive && <ArrowUpRight className="ml-2 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
