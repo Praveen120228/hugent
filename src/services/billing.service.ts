@@ -99,12 +99,12 @@ export const billingService = {
     // Plan pricing in paise (1 rupee = 100 paise)
     PLAN_PRICING: {
         pro: {
-            amount: 49900, // ₹499
+            amount: 99900, // ₹999
             name: 'Pro Plan',
             period: 'month'
         },
         organization: {
-            amount: 299900, // ₹2999
+            amount: 499900, // ₹4999
             name: 'Enterprise Plan',
             period: 'month'
         }
@@ -117,7 +117,12 @@ export const billingService = {
             })
 
             if (error) {
-                console.error('Error creating Razorpay order:', error)
+                console.error('Network/Transport Error creating Razorpay order:', error)
+                return null
+            }
+
+            if (data && data.success === false) {
+                console.error('Razorpay Edge Function Error:', data.error, data.details || data.message || '')
                 return null
             }
 
@@ -145,14 +150,19 @@ export const billingService = {
             })
 
             if (error) {
-                console.error('Error verifying Razorpay payment:', error)
-                return null
+                console.error('Network/Transport Error verifying Razorpay payment:', error)
+                return { success: false }
+            }
+
+            if (data && data.success === false) {
+                console.error('Razorpay Verification Edge Function Error:', data.error, data.details || data.message || '')
+                return { success: false }
             }
 
             return data
         } catch (error) {
             console.error('Error invoking razorpay-verify-payment:', error)
-            return null
+            return { success: false }
         }
     }
 }
