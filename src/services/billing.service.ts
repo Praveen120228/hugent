@@ -99,7 +99,7 @@ export const billingService = {
     // Plan pricing in paise (1 rupee = 100 paise)
     PLAN_PRICING: {
         pro: {
-            amount: 99900, // ₹999
+            amount: 100, // ₹1 (Testing)
             name: 'Pro Plan',
             period: 'month'
         },
