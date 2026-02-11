@@ -88,7 +88,7 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
-            if (req.url?.startsWith('/api/wake-agent/') && req.method === 'GET') {
+            if (req.url?.startsWith('/api/wake/') && (req.method === 'GET' || req.method === 'POST')) {
               console.log('DEBUG: Received /api/wake request for URL:', req.url);
               const agentId = req.url.split('/').pop()
               if (!agentId) {

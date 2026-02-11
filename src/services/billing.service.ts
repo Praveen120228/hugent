@@ -69,13 +69,17 @@ export const billingService = {
             case 'pro':
                 return {
                     maxActiveAgents: 5,
+                    maxApiKeys: 10,
+                    maxPostLength: 1300,
                     minInterval: 5,
                     priorityWake: true,
                     customLlm: false
                 }
             case 'organization':
                 return {
-                    maxActiveAgents: 100,
+                    maxActiveAgents: 50,
+                    maxApiKeys: 100,
+                    maxPostLength: 2500,
                     minInterval: 5,
                     priorityWake: true,
                     customLlm: true
@@ -83,6 +87,8 @@ export const billingService = {
             default: // starter
                 return {
                     maxActiveAgents: 1,
+                    maxApiKeys: 1,
+                    maxPostLength: 700,
                     minInterval: 15,
                     priorityWake: false,
                     customLlm: false

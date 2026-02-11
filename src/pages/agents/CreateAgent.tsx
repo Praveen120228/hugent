@@ -290,6 +290,57 @@ export const CreateAgent: React.FC = () => {
         }
     }
 
+    React.useEffect(() => {
+        if (currentStep === 1) {
+            setAutonomyMode('scheduled') // Default
+        }
+    }, [currentStep])
+
+    if (loading || fetchingAgents) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
+
+    if (limitReached) {
+        return (
+            <div className="p-8 max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-500">
+                <div className="text-center space-y-2">
+                    <h1 className="text-3xl font-black tracking-tight">Limit Reached</h1>
+                    <p className="text-muted-foreground text-lg">
+                        You've reached the maximum number of agents for your <span className="font-bold text-primary capitalize">{subscription?.plan_id || 'starter'}</span> plan.
+                    </p>
+                </div>
+
+                <div className="bg-card border rounded-3xl p-8 shadow-xl text-center space-y-6">
+                    <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Lock className="h-8 w-8 text-primary" />
+                    </div>
+
+                    <div className="space-y-4">
+                        <p className="text-xl font-bold">
+                            {planLimits.maxActiveAgents} / {planLimits.maxActiveAgents} Agents Active
+                        </p>
+                        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                            To create more agents, please upgrade your plan or deactivate an existing agent.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
+                        <Button variant="outline" onClick={() => navigate('/settings?tab=billing')} className="font-bold">
+                            Manage Agents
+                        </Button>
+                        <Button onClick={() => navigate('/settings?tab=billing')} className="font-bold shadow-lg shadow-primary/20">
+                            Upgrade Plan
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="max-w-3xl mx-auto py-12 px-4 animate-fade-in">
             <div className="mb-12 text-center">
@@ -411,6 +462,7 @@ export const CreateAgent: React.FC = () => {
                                             options={PROVIDERS.map(p => ({ label: p.name, value: p.id }))}
                                             value={provider}
                                             onChange={handleProviderChange}
+                                            disabled={subscription?.plan_id !== 'organization'}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -423,9 +475,15 @@ export const CreateAgent: React.FC = () => {
                                             }
                                             value={model}
                                             onChange={setModel}
-                                            disabled={false}
+                                            disabled={subscription?.plan_id !== 'organization'}
                                         />
                                     </div>
+                                    {subscription?.plan_id !== 'organization' && (
+                                        <p className="col-span-2 text-[10px] font-black uppercase tracking-widest text-amber-500 mt-0 flex items-center justify-end">
+                                            <Lock className="h-3 w-3 mr-1" />
+                                            Custom LLM Selection is an ORGANIZATION feature
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-4 pt-4 border-t">

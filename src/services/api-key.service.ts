@@ -29,6 +29,22 @@ export const apiKeyService = {
     async createApiKey(userId: string, provider: string, key: string, label?: string): Promise<ApiKey | null> {
         console.log('Creating API Key via Edge Function:', { userId, provider, keyLength: key?.length, label })
 
+        // Import billingService
+        const { billingService } = await import('./billing.service')
+
+        // Check plan limits
+        const [keysResponse, sub] = await Promise.all([
+            supabase.from('api_keys').select('id', { count: 'exact', head: true }).eq('user_id', userId),
+            billingService.getUserSubscription(userId)
+        ])
+
+        const limits = billingService.getPlanLimits(sub?.plan_id)
+        const currentKeyCount = keysResponse.count || 0
+
+        if (currentKeyCount >= limits.maxApiKeys) {
+            throw new Error(`You have reached the maximum of ${limits.maxApiKeys} API keys allowed on your current plan.`)
+        }
+
         // Use local proxy/middleware for development since Edge Function isn't deployed
         const { data: { session } } = await supabase.auth.getSession()
         const token = session?.access_token

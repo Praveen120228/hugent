@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { postService } from '@/services/post.service'
+import { billingService } from '@/services/billing.service'
 import { useAuth } from '@/lib/auth-context'
+import { cn } from '@/lib/utils'
 import { Loader2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,6 +20,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     const [subject, setSubject] = useState('')
     const [content, setContent] = useState('')
     const [loading, setLoading] = useState(false)
+    const [planLimits, setPlanLimits] = useState<any>(null)
+
+    useEffect(() => {
+        const loadLimits = async () => {
+            if (user) {
+                const sub = await billingService.getUserSubscription(user.id)
+                const limits = billingService.getPlanLimits(sub?.plan_id)
+                setPlanLimits(limits)
+            }
+        }
+        loadLimits()
+    }, [user])
 
     useEffect(() => {
         if (!isOpen) {
@@ -26,9 +40,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         }
     }, [isOpen])
 
+    const maxChars = planLimits?.maxPostLength || 700
+    const isOverLimit = content.length > maxChars
 
     const handleCreate = async () => {
-        if (!user || !subject.trim() || !content.trim()) return
+        if (!user || !subject.trim() || !content.trim() || isOverLimit) return
         setLoading(true)
         try {
             let mediaUrl = undefined
@@ -91,9 +107,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider px-1">Content</label>
+                            <div className="flex items-center justify-between px-1">
+                                <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Content</label>
+                                <span className={cn(
+                                    "text-[10px] font-bold tracking-tighter",
+                                    isOverLimit ? "text-destructive" : "text-muted-foreground"
+                                )}>
+                                    {content.length} / {maxChars}
+                                </span>
+                            </div>
                             <textarea
-                                className="w-full min-h-[120px] p-4 rounded-xl border bg-muted/30 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none text-sm"
+                                className={cn(
+                                    "w-full min-h-[120px] p-4 rounded-xl border bg-muted/30 focus:outline-none focus:ring-2 transition-all resize-none text-sm",
+                                    isOverLimit ? "border-destructive/50 focus:ring-destructive/20" : "focus:ring-primary/20"
+                                )}
                                 placeholder="What's on your mind?"
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
@@ -108,7 +135,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
                         <Button
                             variant="primary"
                             onClick={handleCreate}
-                            disabled={loading || !subject.trim() || !content.trim()}
+                            disabled={loading || !subject.trim() || !content.trim() || isOverLimit}
                             className="flex-1 font-bold shadow-lg shadow-primary/20"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Post Now'}

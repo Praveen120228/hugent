@@ -90,6 +90,21 @@ export class DatabaseAdapter {
         };
     }
 
+    async findSubscriptionByUserId(userId: string): Promise<any | null> {
+        const { data, error } = await this.supabase
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('status', 'active')
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching subscription in adapter:', error);
+            return null;
+        }
+        return data;
+    }
+
     // ============================================================================
     // POSTS
     // ============================================================================

@@ -239,7 +239,9 @@ export class AutonomousAgentEngine {
         console.log(`Decryption successful. Key starts with: ${apiKey.substring(0, 8)}...`);
 
         // 3. Build Prompt
-        const prompt = this.buildDecisionPrompt(agent, context, intent);
+        const subscription = await this.db.findSubscriptionByUserId(agent.user_id);
+        const planLimits = this.getPlanLimits(subscription?.plan_id);
+        const prompt = this.buildDecisionPrompt(agent, context, planLimits, intent);
 
         // 4. Call LLM
         const response = await this.llm.call({
@@ -248,21 +250,15 @@ export class AutonomousAgentEngine {
                 { role: 'system', content: `You are ${agent.name}. Decision-making mode.` },
                 { role: 'user', content: prompt }
             ],
-            temperature: 0.7
+            temperature: 0.7,
+            max_tokens: 8192
         }, apiKey, keyRecord.provider);
 
         // 5. Parse
         let actions: AgentAction[] = [];
         let thoughtProcess = '';
         try {
-            // Remove markdown code blocks if present
-            let cleanResponse = response.content.trim();
-            if (cleanResponse.startsWith('```json')) {
-                cleanResponse = cleanResponse.substring(7, cleanResponse.length - 3).trim();
-            } else if (cleanResponse.startsWith('```')) {
-                cleanResponse = cleanResponse.substring(3, cleanResponse.length - 3).trim();
-            }
-
+            const cleanResponse = this.repairJson(response.content.trim());
             const parsed = JSON.parse(cleanResponse);
             const rawActions = parsed.actions || [];
             thoughtProcess = parsed.thought_process || '';
@@ -336,7 +332,8 @@ export class AutonomousAgentEngine {
             }
         } catch (e) {
             console.error('Failed to parse agent actions JSON. Error:', e);
-            console.error('Raw response content:', response.content);
+            console.error('Raw response content length:', response.content.length);
+            console.error('Raw response content snippet:', response.content.substring(0, 500) + '...');
         }
 
         console.log(`LLM decided on ${actions.length} actions for ${agent.name}. Thought process: ${thoughtProcess}`);
@@ -357,10 +354,16 @@ export class AutonomousAgentEngine {
     /**
      * Build the decision prompt - this is crucial for good agent behavior
      */
-    private buildDecisionPrompt(agent: Agent, context: AgentContext, intent?: AgentIntent): string {
+    private buildDecisionPrompt(agent: Agent, context: AgentContext, planLimits: any, intent?: AgentIntent): string {
         const canPostNew = context.dailyPostCount < 50;
+        const maxChars = planLimits.maxPostLength || 700;
 
         let prompt = `You are ${agent.name} (@${agent.username}), an AI agent on the Hugents social network.
+
+POSTING RULES:
+1. Every post or reply you write MUST BE UNDER ${maxChars} CHARACTERS.
+2. Be concise and impactful.
+3. Maintain your unique personality.
 
 PERSONALITY:
 ${agent.personality}
@@ -721,6 +724,18 @@ CRITICAL RULES:
     }
 
     /**
+     * Format time since last action
+     */
+    private formatTimeSince(date: Date): string {
+        const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+        return `${Math.floor(seconds / 86400)}d ago`;
+    }
+
+    /**
      * Check if agent should wake up this cycle
      */
     private shouldAgentWake(agent: Agent): boolean {
@@ -822,14 +837,83 @@ CRITICAL RULES:
     }
 
     /**
-     * Format time since last action
+     * Attempt to repair malformed or truncated JSON
      */
-    private formatTimeSince(date: Date): string {
-        const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    private getPlanLimits(planId: string | undefined) {
+        switch (planId) {
+            case 'pro':
+                return { maxPostLength: 1300 };
+            case 'organization':
+                return { maxPostLength: 2500 };
+            default:
+                return { maxPostLength: 700 };
+        }
+    }
 
-        if (seconds < 60) return 'just now';
-        if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-        if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-        return `${Math.floor(seconds / 86400)}d ago`;
+    private repairJson(json: string): string {
+        // Remove markdown code blocks if present
+        let clean = json.trim();
+        if (clean.startsWith('```json')) {
+            clean = clean.substring(7);
+            if (clean.endsWith('```')) clean = clean.substring(0, clean.length - 3);
+            clean = clean.trim();
+        } else if (clean.startsWith('```')) {
+            clean = clean.substring(3);
+            if (clean.endsWith('```')) clean = clean.substring(0, clean.length - 3);
+            clean = clean.trim();
+        }
+
+        try {
+            JSON.parse(clean);
+            return clean;
+        } catch (e) {
+            console.log('JSON parsing failed, attempting repair...');
+
+            // 1. Handle unclosed strings if truncated
+            // If the last character is NOT a quote and we have an odd number of quotes, 
+            // the LLM might have cut off in the middle of a string.
+            const quotes = (clean.match(/"/g) || []).length;
+            if (quotes % 2 !== 0) {
+                console.log('Detected unclosed string, closing it...');
+                // Check if it was escaped \"
+                if (!clean.endsWith('\\')) {
+                    clean += '"';
+                } else {
+                    clean += ' "'; // Safety for trailing backslash
+                }
+            }
+
+            // 2. Remove common trailing garbage (like non-JSON characters after the final })
+            const lastBrace = clean.lastIndexOf('}');
+            if (lastBrace !== -1) {
+                const truncated = clean.substring(0, lastBrace + 1);
+                try {
+                    JSON.parse(truncated);
+                    return truncated;
+                } catch (e2) {
+                    // Still failing
+                }
+            }
+
+            // 3. Add missing closing brackets/braces if truncated
+            let repaired = clean;
+            const openBraces = (repaired.match(/{/g) || []).length;
+            const closeBraces = (repaired.match(/}/g) || []).length;
+            const openBrackets = (repaired.match(/\[/g) || []).length;
+            const closeBrackets = (repaired.match(/\]/g) || []).length;
+
+            // Basic safety check: if we have way too many opens, don't try to close them all
+            if (openBraces - closeBraces > 10 || openBrackets - closeBrackets > 10) return clean;
+
+            for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += ']';
+            for (let i = 0; i < openBraces - closeBraces; i++) repaired += '}';
+
+            try {
+                JSON.parse(repaired);
+                return repaired;
+            } catch (e3) {
+                return clean; // Fail back to original
+            }
+        }
     }
 }

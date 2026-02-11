@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/lib/theme-context'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
+import { billingService } from '@/services/billing.service'
 import { BillingSettings } from '@/components/settings/BillingSettings'
 import { CreditCard as BillingIcon } from 'lucide-react'
 
@@ -24,14 +25,26 @@ export const Settings: React.FC = () => {
     }
     const [agents, setAgents] = useState<Agent[]>([])
     const [agentsLoading, setAgentsLoading] = useState(false)
+    const [planLimits, setPlanLimits] = useState<any>(null)
     const [showKey, setShowKey] = useState<string | null>(null)
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
     const [keysLoading, setKeysLoading] = useState(false)
     const [isKeyModalOpen, setIsKeyModalOpen] = useState(false)
 
     useEffect(() => {
-        const loadAgents = async () => {
-            if (activeTab === 'agents' && user) {
+        const loadInitialData = async () => {
+            if (!user) return
+
+            // Load subscription and limits
+            try {
+                const sub = await billingService.getUserSubscription(user.id)
+                const limits = billingService.getPlanLimits(sub?.plan_id)
+                setPlanLimits(limits)
+            } catch (error) {
+                console.error('Failed to load subscription info:', error)
+            }
+
+            if (activeTab === 'agents') {
                 setAgentsLoading(true)
                 try {
                     const data = await agentService.getUserAgents(user.id)
@@ -41,7 +54,7 @@ export const Settings: React.FC = () => {
                 } finally {
                     setAgentsLoading(false)
                 }
-            } else if (activeTab === 'keys' && user) {
+            } else if (activeTab === 'keys') {
                 setKeysLoading(true)
                 try {
                     const data = await apiKeyService.getApiKeys(user.id)
@@ -53,7 +66,7 @@ export const Settings: React.FC = () => {
                 }
             }
         }
-        loadAgents()
+        loadInitialData()
     }, [activeTab, user])
 
     const handleDeleteAgent = async (agentId: string, agentName: string) => {
@@ -195,15 +208,33 @@ export const Settings: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h3 className="text-xl font-bold">Your AI Workforce</h3>
-                                    <p className="text-sm text-muted-foreground font-medium">Manage and monitor your agents' activity.</p>
+                                    <div className="flex items-center space-x-2 mt-0.5">
+                                        <p className="text-sm text-muted-foreground font-medium">Manage and monitor your agents' activity.</p>
+                                        {planLimits && (
+                                            <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 bg-muted/30">
+                                                {agents.length} / {planLimits.maxActiveAgents} Agents
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
-                                {!agentsLoading && agents.length === 0 && (
-                                    <Link to="/agents/new">
-                                        <Button size="sm" className="rounded-xl font-bold">
-                                            <Plus className="mr-2 h-4 w-4" />
-                                            New Agent
+                                {!agentsLoading && (
+                                    planLimits && agents.length >= planLimits.maxActiveAgents ? (
+                                        <Button
+                                            size="sm"
+                                            className="rounded-xl font-bold bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20"
+                                            onClick={() => setActiveTab('billing')}
+                                        >
+                                            <Zap className="mr-2 h-4 w-4" />
+                                            Upgrade
                                         </Button>
-                                    </Link>
+                                    ) : (
+                                        <Link to="/agents/new">
+                                            <Button size="sm" className="rounded-xl font-bold">
+                                                <Plus className="mr-2 h-4 w-4" />
+                                                New Agent
+                                            </Button>
+                                        </Link>
+                                    )
                                 )}
                             </div>
 
@@ -286,12 +317,32 @@ export const Settings: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h3 className="text-xl font-bold">LLM Provider Keys</h3>
-                                    <p className="text-sm text-muted-foreground font-medium">Securely store your API keys to power your agents.</p>
+                                    <div className="flex items-center space-x-2 mt-0.5">
+                                        <p className="text-sm text-muted-foreground font-medium">Securely store your API keys to power your agents.</p>
+                                        {planLimits && (
+                                            <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 bg-muted/30">
+                                                {apiKeys.length} / {planLimits.maxApiKeys} Keys
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
-                                <Button size="sm" className="rounded-xl font-bold" onClick={() => setIsKeyModalOpen(true)}>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Add New Key
-                                </Button>
+                                {!keysLoading && (
+                                    planLimits && apiKeys.length >= planLimits.maxApiKeys ? (
+                                        <Button
+                                            size="sm"
+                                            className="rounded-xl font-bold bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20"
+                                            onClick={() => setActiveTab('billing')}
+                                        >
+                                            <Zap className="mr-2 h-4 w-4" />
+                                            Upgrade
+                                        </Button>
+                                    ) : (
+                                        <Button size="sm" className="rounded-xl font-bold" onClick={() => setIsKeyModalOpen(true)}>
+                                            <Plus className="mr-2 h-4 w-4" />
+                                            Add New Key
+                                        </Button>
+                                    )
+                                )}
                             </div>
 
                             {keysLoading ? (

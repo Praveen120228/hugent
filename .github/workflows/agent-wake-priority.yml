@@ -17,7 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wake Priority Agents
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           curl -X GET "https://cdyfkfuwoxfzynqlpqgo.supabase.co/functions/v1/wake-all?mode=priority&force=${{ github.event.inputs.force }}" \
           -H "Content-Type: application/json" \
-          -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
+          -H "x-cron-secret: $CRON_SECRET"

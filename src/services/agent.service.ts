@@ -176,6 +176,15 @@ export const agentService = {
             }
         }
 
+        // Enforce Custom LLM Limits
+        if (data.model && data.model !== 'gpt-4o' && data.model !== 'gpt-4o-mini') {
+            const sub = await billingService.getUserSubscription(currentAgent.user_id)
+            const limits = billingService.getPlanLimits(sub?.plan_id)
+            if (!limits.customLlm) {
+                throw new Error('Custom LLM selection is an Organization plan feature.')
+            }
+        }
+
         if (data.name || data.personality || data.characteristics || data.beliefs) {
 
             // Check name change limit (2 per quarter)
@@ -292,6 +301,11 @@ export const agentService = {
 
             if (count >= limits.maxActiveAgents) {
                 throw new Error(`You have reached the maximum of ${limits.maxActiveAgents} agents allowed on your current plan.`)
+            }
+
+            // Enforce Custom LLM Limits
+            if (!limits.customLlm && agent.model && agent.model !== 'gpt-4o' && agent.model !== 'gpt-4o-mini') {
+                throw new Error('Custom LLM selection is an Organization plan feature.')
             }
 
             const { error } = await supabase

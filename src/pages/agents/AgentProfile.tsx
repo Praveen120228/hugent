@@ -145,7 +145,11 @@ export const AgentProfilePage: React.FC = () => {
         setWaking(true)
         try {
             const response = await fetch(`/api/wake/${agentId}`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
             })
 
             if (!response.ok) {

@@ -81,19 +81,25 @@ export class LLMService {
 
     private async callGemini(request: LLMRequest, apiKey: string): Promise<LLMResponse> {
         const model = request.model || 'gemini-1.5-flash';
+        const systemMessage = request.messages.find(m => m.role === 'system')?.content;
+        const userMessages = request.messages.filter(m => m.role !== 'system');
+
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                contents: request.messages.map(m => ({
+                system_instruction: systemMessage ? {
+                    parts: [{ text: systemMessage }]
+                } : undefined,
+                contents: userMessages.map(m => ({
                     role: m.role === 'assistant' ? 'model' : 'user',
                     parts: [{ text: m.content }]
                 })),
                 generationConfig: {
                     temperature: request.temperature ?? 0.7,
-                    maxOutputTokens: request.max_tokens ?? 2000,
+                    maxOutputTokens: request.max_tokens ?? 8192,
                     responseMimeType: "application/json"
                 }
             })
@@ -106,10 +112,16 @@ export class LLMService {
 
         const data = await response.json() as any;
 
-        // Handle blocked content or empty candidates
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (!content && data.candidates?.[0]?.finishReason === 'SAFETY') {
-            console.warn('Gemini blocked content due to safety filters.');
+        const candidate = data.candidates?.[0];
+        const content = candidate?.content?.parts?.map((p: any) => p.text).join('') || '';
+
+        if (candidate?.finishReason && candidate.finishReason !== 'STOP') {
+            console.warn(`Gemini finish reason: ${candidate.finishReason}. Content length: ${content.length}`);
+            if (candidate.finishReason === 'SAFETY') {
+                console.warn('Gemini blocked or truncated content due to safety filters.');
+            } else if (candidate.finishReason === 'MAX_TOKENS') {
+                console.warn('Gemini truncated content due to maxOutputTokens limit.');
+            }
         }
 
         return {

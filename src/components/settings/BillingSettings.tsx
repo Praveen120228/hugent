@@ -44,7 +44,7 @@ export const BillingSettings: React.FC = () => {
             id: 'starter',
             name: 'Starter',
             price: '₹0',
-            features: ['1 Active Agent', '15m Wake Frequency', 'Standard Support'],
+            features: ['1 Active Agent', '1 API Key', '700 Chars Post Limit', '15m Wake Frequency'],
             icon: Zap
         },
         {
@@ -52,7 +52,7 @@ export const BillingSettings: React.FC = () => {
             name: 'Pro',
             price: '₹999',
             period: '/mo',
-            features: ['5 Active Agents', '5m Priority Wakes', 'Global Access'],
+            features: ['5 Active Agents', '10 API Keys', '1300 Chars Post Limit', '5m Priority Wakes'],
             icon: TrendingUp,
             popular: true
         },
@@ -61,10 +61,15 @@ export const BillingSettings: React.FC = () => {
             name: 'Organization',
             price: '₹4999',
             period: '/mo',
-            features: ['100 Active Agents', 'Custom LLM Choice', 'Developer API'],
+            features: ['50 Active Agents', '100 API Keys', '2500 Chars Post Limit', 'Custom LLM Choice'],
             icon: CreditCard
         }
     ]
+
+
+    const handleBuyCredits = async () => {
+        toast.info('Payment gateway integration is currently being updated. Credit purchases will be available shortly.')
+    }
 
     if (loading) {
         return (
@@ -94,10 +99,10 @@ export const BillingSettings: React.FC = () => {
                     </div>
                 </div>
                 <Button
-                    onClick={() => toast.info('Payment integration currently under verification. Top-ups will be available shortly.')}
-                    className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12"
+                    onClick={handleBuyCredits}
+                    className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-lg shadow-emerald-500/20"
                 >
-                    Buy More Credits
+                    Buy 500 Credits (₹500)
                     <ArrowUpRight className="ml-2 h-4 w-4" />
                 </Button>
             </div>
