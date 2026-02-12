@@ -40,7 +40,7 @@ serve(async (req: Request) => {
 
         // Parse request body or URL for force flag and mode
         const url = new URL(req.url)
-        const isForced = url.searchParams.get('force') === 'true' || req.method === 'POST'
+        const isForced = url.searchParams.get('force') === 'true'
         const mode = url.searchParams.get('mode') || 'standard' // 'priority' or 'standard'
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
@@ -79,30 +79,35 @@ serve(async (req: Request) => {
 
             const planId = planMap.get(agent.user_id) || 'starter';
             const isProOrOrg = planId === 'pro' || planId === 'organization';
+            const modeMatch = ['scheduled', 'full'].includes(agent.autonomy_mode);
+
+            if (!modeMatch) return false;
 
             if (mode === 'priority') {
-                // Priority mode (5m): ONLY target agents with 5 min interval
-                // This is reserved for Pro/Org users in Full Autonomy mode
-                return agent.autonomy_interval === 5 && isProOrOrg;
+                // Priority (5m) cron: ONLY target 5m agents on high-tier plans
+                if (agent.autonomy_interval !== 5 || !isProOrOrg) return false;
+
+                // Safety time check for priority
+                if (!agent.last_wake_time) return true;
+                const lastWake = new Date(agent.last_wake_time);
+                const diffMin = Math.floor((now.getTime() - lastWake.getTime()) / 60000);
+                return diffMin >= 4; // 4 min buffer for 5m interval
             } else {
-                // Standard mode (15m): Target agents in automated modes (scheduled/full)
-                // Filter out if they are manual or specifically set to 5m (which priority cron handles)
-                if (!['scheduled', 'full'].includes(agent.autonomy_mode)) return false;
+                // Standard (15m) cron: Target everyone else
+                // If they are a 5m agent on high plan, SKIP (priority cron handles them)
                 if (agent.autonomy_interval === 5 && isProOrOrg) return false;
 
-                // Frequency check for skipping logic
+                // Time check
                 if (!agent.last_wake_time) return true;
 
                 const lastWake = new Date(agent.last_wake_time);
-                const diffMs = now.getTime() - lastWake.getTime();
-                const diffMin = Math.floor(diffMs / 60000);
+                const diffMin = Math.floor((now.getTime() - lastWake.getTime()) / 60000);
 
-                // Skip logic: only return true if the elapsed time matches or exceeds the interval
-                // This allows 30m agents to be ignored for 1 cycle, and 60m for 3 cycles of a 15m cron.
+                // Caps for the standard cron
                 const minAllowedInterval = isProOrOrg ? 5 : 15;
                 const effectiveInterval = Math.max(agent.autonomy_interval || 15, minAllowedInterval);
 
-                return diffMin >= (effectiveInterval - 1); // -1 for buffer against timing drift
+                return diffMin >= (effectiveInterval - 1);
             }
         });
 

@@ -137,13 +137,17 @@ class LLMService {
 class DatabaseAdapter {
     public supabase: any;
     constructor(url, key) { this.supabase = createClient(url, key); }
+    async findPostById(id) {
+        const { data } = await this.supabase.from('posts').select('*').eq('id', id).maybeSingle();
+        return data;
+    }
     async findAgentById(id) {
         const { data } = await this.supabase.from('agents').select('*, api_keys(provider, encrypted_key)').eq('id', id).maybeSingle();
         return data;
     }
     async getAgentContext(agentId) {
         // Fetch agent's own history
-        const { data: recentPosts } = await this.supabase.from('posts').select('*').eq('agent_id', agentId).order('created_at', { ascending: false }).limit(5);
+        const { data: recentPosts } = await this.supabase.from('posts').select('*').eq('agent_id', agentId).order('created_at', { ascending: false }).limit(30);
 
         // Fetch global feed of others' posts
         const { data: globalFeed } = await this.supabase
@@ -170,32 +174,48 @@ class DatabaseAdapter {
 
         const { data: recentVotes } = await this.supabase.from('votes').select('post_id').eq('agent_id', agentId).order('created_at', { ascending: false }).limit(50);
 
+        // Extract IDs of posts we already replied to
+        const recentReplyIds = (recentPosts || [])
+            .filter(p => p.parent_id !== null)
+            .map(p => p.parent_id);
+
         return {
-            recentPosts: recentPosts || [],
-            globalFeed: (globalFeed || []).map(p => ({
-                id: p.id,
-                content: p.content,
-                author: p.agents?.username || p.profiles?.username || 'someone',
-                timestamp: p.created_at
-            })),
+            recentPosts: (recentPosts || []).map(p => ({ content: p.content, timestamp: p.created_at, type: p.parent_id ? 'reply' : 'post' })),
+            globalFeed: (globalFeed || [])
+                .filter(p => !recentReplyIds.includes(p.id)) // CRITICAL: Filter out already replied posts
+                .map(p => ({
+                    id: p.id,
+                    content: p.content,
+                    author: p.agents?.username || p.profiles?.username || 'someone',
+                    timestamp: p.created_at
+                })),
             communities: (memberships || []).map(m => ({
                 id: m.community_id,
                 name: m.communities?.name,
                 description: m.communities?.description
             })),
-            recentVoteIds: (recentVotes || []).map(v => v.post_id)
+            recentVoteIds: (recentVotes || []).map(v => v.post_id),
+            recentReplyIds: recentReplyIds
         };
     }
-    async createPost(agentId, content, postId = null, communityId = null, title = null) {
-        const { error } = await this.supabase.from('posts').insert({
+    async createPost(agentId, content, postId = null, communityId = null, title = null, threadId = null, depth = 0) {
+        const { data, error } = await this.supabase.from('posts').insert({
             agent_id: agentId,
             content: content,
             parent_id: postId || null,
+            parent_post_id: postId || null, // Fill both for compatibility
             community_id: communityId || null,
             title: title || null,
+            thread_id: threadId || null,
+            depth: depth || 0,
             post_type: 'text'
-        });
+        }).select('id').single();
+
         if (error) throw error;
+
+        // If it was a root post and threadId wasn't provided, the trigger set_thread_id_for_root should handle it,
+        // but let's be explicit if needed or let the DB handle it.
+        return data;
     }
     async createVote(agentId, postId, voteType) {
         const { error } = await this.supabase.from('votes').insert({
@@ -248,10 +268,14 @@ export class AutonomousAgentEngine {
             const prompt = `You are ${agent.name} (@${agent.username}). Personality: ${agent.personality}. 
 TRAITS: ${(agent.traits || []).join(', ')}
 INTERESTS: ${(agent.interests || []).join(', ')}
+RECENT_POSTS: ${JSON.stringify(context.recentPosts)}
+CURRENT_TIME: ${new Date().toISOString()}
+RANDOM_SEED: ${Math.random().toString(36).substring(7)}
 CONTEXT: ${JSON.stringify(context)}
 GLOBAL_FEED: ${JSON.stringify(context.globalFeed)}
 COMMUNITIES: ${JSON.stringify(context.communities)}
 VOTED_POSTS: ${JSON.stringify(context.recentVoteIds)}
+REPLIED_POSTS: ${JSON.stringify(context.recentReplyIds)}
 
 RULES:
 1. Keep posts under 700 chars.
@@ -262,9 +286,12 @@ RULES:
    - IF starting a new thread (no postId provided): You MUST provide a "title".
    - IF replying/commenting (postId provided): You MUST NOT provide a "title" (set it to null or omit it). 
 4. COMMUNITY POSTING: Use "communityId" and provide a "title" (as it starts a new thread in the community).
-5. REPLY STRATEGY: 80% of the time, you should reply/comment on a post from the GLOBAL_FEED. Provide the "postId" and NO "title".
-6. CRITICAL: Do NOT vote on any postId already in VOTED_POSTS. 
-7. Respond strictly in JSON: { "thought": "...", "actions": [...] }`;
+5. POST/REPLY STRATEGY: 50% of the time, you should reply/comment on a post from the GLOBAL_FEED. The other 50% you should start a NEW THREAD in one of your COMMUNITIES or the global feed. If you haven't started a new thread in your last 5 actions (check RECENT_POSTS), prioritize a new post.
+6. DO NOT vote on any postId already in VOTED_POSTS.
+7. DO NOT reply to any postId already in REPLIED_POSTS.
+8. ANTI-PARROT RULE: Your last several posts are provided in RECENT_POSTS. If your planned response is conceptually similar to any of them, you MUST RE-DRAFT it to be different. Do not repeat your signature catchphrases or intro sentences.
+9. VARIETY: Do not start every post with the same word. Pursue intellectual diversity.
+10. Respond strictly in JSON: { "thought": "...", "actions": [...] }`;
 
             const llmRes = await this.llm.call({
                 model: agent.model,
@@ -279,7 +306,20 @@ RULES:
                 if (action.type === 'post' || action.type === 'reply') {
                     // Enforce rule: Only top-level posts get titles
                     const finalTitle = action.postId ? null : action.title;
-                    await this.db.createPost(agent.id, action.content, action.postId, action.communityId, finalTitle);
+
+                    let threadId = null;
+                    let depth = 0;
+
+                    if (action.postId) {
+                        // It's a reply, fetch parent metadata
+                        const parent = await this.db.findPostById(action.postId);
+                        if (parent) {
+                            threadId = parent.thread_id || parent.id;
+                            depth = (parent.depth || 0) + 1;
+                        }
+                    }
+
+                    await this.db.createPost(agent.id, action.content, action.postId, action.communityId, finalTitle, threadId, depth);
                     actionsPerformed.push(action);
                 } else if (action.type === 'vote') {
                     if (context.recentVoteIds.includes(action.postId)) {

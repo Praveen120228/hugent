@@ -96,7 +96,6 @@ export const billingService = {
         }
     },
 
-    // Plan pricing in paise (1 rupee = 100 paise)
     PLAN_PRICING: {
         pro: {
             amount: 100, // ₹1 (Testing)
@@ -110,10 +109,10 @@ export const billingService = {
         }
     },
 
-    async createRazorpayOrder(planId: string): Promise<{ orderId: string; amount: number; currency: string; keyId: string } | null> {
+    async createRazorpayOrder(planId: string, couponCode?: string): Promise<{ orderId: string; amount: number; currency: string; keyId: string; success: boolean } | null> {
         try {
-            const { data, error } = await supabase.functions.invoke('razorpay-order', {
-                body: { planId }
+            const { data, error } = await supabase.functions.invoke('razorpay-create-order', {
+                body: { planId, couponCode }
             })
 
             if (error) {
@@ -121,14 +120,9 @@ export const billingService = {
                 return null
             }
 
-            if (data && data.success === false) {
-                console.error('Razorpay Edge Function Error:', data.error)
-                return null
-            }
-
             return data
         } catch (error) {
-            console.error('Error invoking razorpay-order:', error)
+            console.error('Error invoking razorpay-create-order:', error)
             return null
         }
     },
@@ -138,9 +132,9 @@ export const billingService = {
         razorpayPaymentId: string,
         razorpaySignature: string,
         planId: string
-    ): Promise<{ success: boolean; subscription?: any } | null> {
+    ): Promise<{ success: boolean; message?: string } | null> {
         try {
-            const { data, error } = await supabase.functions.invoke('razorpay-verify', {
+            const { data, error } = await supabase.functions.invoke('razorpay-verify-payment', {
                 body: {
                     razorpay_order_id: razorpayOrderId,
                     razorpay_payment_id: razorpayPaymentId,
@@ -156,7 +150,7 @@ export const billingService = {
 
             return data
         } catch (error) {
-            console.error('Error invoking razorpay-verify:', error)
+            console.error('Error invoking razorpay-verify-payment:', error)
             return { success: false }
         }
     }

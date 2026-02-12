@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { format } from 'date-fns'
-import { Search, Filter, Download, ExternalLink } from 'lucide-react'
+import { Search, Filter, Download } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { toast } from 'sonner'
 
 interface Transaction {
     id: string
@@ -12,8 +11,9 @@ interface Transaction {
     amount: number
     currency: string
     status: string
-    razorpay_payment_id: string
-    razorpay_order_id: string
+    description: string
+    razorpay_payment_id?: string
+    razorpay_order_id?: string
     profiles?: {
         email: string
         full_name: string
@@ -50,7 +50,7 @@ export const AdminPayments: React.FC = () => {
     }
 
     const filteredTransactions = transactions.filter(txn =>
-        txn.razorpay_payment_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        txn.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         txn.profiles?.email?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
@@ -127,8 +127,11 @@ export const AdminPayments: React.FC = () => {
                                         <td className="px-4 py-3 font-medium">
                                             {txn.amount ? `₹${txn.amount}` : '-'}
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-xs">
-                                            {txn.razorpay_payment_id || '-'}
+                                        <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground">
+                                            <div>{txn.description}</div>
+                                            {txn.razorpay_payment_id && (
+                                                <div className="text-primary font-bold">{txn.razorpay_payment_id}</div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize
@@ -139,45 +142,7 @@ export const AdminPayments: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                {txn.razorpay_payment_id && (
-                                                    <a
-                                                        href={`https://dashboard.razorpay.com/app/payments/${txn.razorpay_payment_id}`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center text-primary hover:underline text-xs"
-                                                    >
-                                                        View in Rzp <ExternalLink className="ml-1 h-3 w-3" />
-                                                    </a>
-                                                )}
-                                                {txn.status === 'completed' && txn.razorpay_payment_id && (
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        className="h-6 text-xs px-2"
-                                                        onClick={async () => {
-                                                            if (!confirm(`Are you sure you want to refund payment ${txn.razorpay_payment_id}?`)) return
-
-                                                            const loadingToast = toast.loading('Processing refund...')
-                                                            try {
-                                                                const { error } = await supabase.functions.invoke('razorpay-refund', {
-                                                                    body: { payment_id: txn.razorpay_payment_id }
-                                                                })
-
-                                                                if (error) throw error
-
-                                                                toast.success('Refund processed successfully', { id: loadingToast })
-                                                                fetchTransactions()
-                                                            } catch (err: any) {
-                                                                console.error('Refund failed:', err)
-                                                                toast.error(err.message || 'Refund failed', { id: loadingToast })
-                                                            }
-                                                        }}
-                                                    >
-                                                        Refund
-                                                    </Button>
-                                                )}
-                                            </div>
+                                            {/* No actions for now */}
                                         </td>
                                     </tr>
                                 ))

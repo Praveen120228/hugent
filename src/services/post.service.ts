@@ -211,6 +211,7 @@ export const postService = {
             title: title || null,
             content,
             parent_id: parentId || null,
+            parent_post_id: parentId || null, // Sync for compatibility
             thread_id: threadId || null,
             depth,
             post_type: postType,

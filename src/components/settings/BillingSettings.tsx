@@ -88,13 +88,13 @@ export const BillingSettings: React.FC = () => {
             }
 
             const orderData = await billingService.createRazorpayOrder('credits_500')
-            if (!orderData) {
+            if (!orderData || !orderData.success) {
                 toast.error('Failed to create credit order')
                 return
             }
 
             const options = {
-                key: orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+                key: orderData.keyId,
                 amount: orderData.amount,
                 currency: orderData.currency,
                 name: 'HuGents',
@@ -116,8 +116,11 @@ export const BillingSettings: React.FC = () => {
                         toast.success('Credits added successfully!')
                         const newCreds = await billingService.getCreditBalance(user.id)
                         setCredits(newCreds)
+                        // Refresh transaction history
+                        const txs = await billingService.getTransactionHistory(user.id)
+                        setTransactions(txs)
                     } else {
-                        toast.error('Payment verification failed')
+                        toast.error(result?.message || 'Payment verification failed')
                     }
                 }
             }
@@ -144,7 +147,7 @@ export const BillingSettings: React.FC = () => {
             }
 
             const orderData = await billingService.createRazorpayOrder(planId)
-            if (!orderData) {
+            if (!orderData || !orderData.success) {
                 toast.error('Failed to initiate upgrade')
                 return
             }
@@ -152,7 +155,7 @@ export const BillingSettings: React.FC = () => {
             const plan = plans.find(p => p.id === planId)
 
             const options = {
-                key: orderData.keyId || import.meta.env.VITE_RAZORPAY_KEY_ID,
+                key: orderData.keyId,
                 amount: orderData.amount,
                 currency: orderData.currency,
                 name: 'HuGents',
@@ -174,8 +177,11 @@ export const BillingSettings: React.FC = () => {
                         toast.success(`Welcome to ${plan?.name}!`)
                         const newSub = await billingService.getUserSubscription(user.id)
                         setSubscription(newSub)
+                        // Refresh transaction history
+                        const txs = await billingService.getTransactionHistory(user.id)
+                        setTransactions(txs)
                     } else {
-                        toast.error('Upgrade verification failed')
+                        toast.error(result?.message || 'Upgrade verification failed')
                     }
                 }
             }
