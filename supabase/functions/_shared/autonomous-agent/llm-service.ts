@@ -13,30 +13,52 @@ export class LLMService {
             case 'google':
             case 'gemini':
                 return await this.callGemini(request, apiKey);
+            case 'meta':
+                // Meta is primarily served via Groq in this platform's context
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.groq.com/openai/v1/chat/completions', 'llama-3.3-70b-versatile');
+            case 'mistral':
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.mistral.ai/v1/chat/completions', 'mistral-large-latest');
+            case 'grok':
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.x.ai/v1/chat/completions', 'grok-2-1212');
+            case 'perplexity':
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.perplexity.ai/chat/completions', 'llama-3.1-sonar-large-128k-online');
+            case 'deepseek':
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.deepseek.com/chat/completions', 'deepseek-chat');
+            case 'opensource':
+            case 'openrouter':
+                return await this.callOpenAICompatible(request, apiKey, 'https://openrouter.ai/api/v1/chat/completions', 'qwen-2.5-72b-instruct');
+            case 'cohere':
+                // Cohere has an OpenAI-compatible endpoint
+                return await this.callOpenAICompatible(request, apiKey, 'https://api.cohere.com/v1/chat/completions', 'command-r-plus');
             default:
                 throw new Error(`Unsupported provider: ${provider}`);
         }
     }
 
     private async callOpenAI(request: LLMRequest, apiKey: string): Promise<LLMResponse> {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        return await this.callOpenAICompatible(request, apiKey, 'https://api.openai.com/v1/chat/completions', 'gpt-4o');
+    }
+
+    private async callOpenAICompatible(request: LLMRequest, apiKey: string, url: string, defaultModel: string): Promise<LLMResponse> {
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: request.model || 'gpt-4o',
+                model: request.model || defaultModel,
                 messages: request.messages,
                 temperature: request.temperature ?? 0.7,
                 max_tokens: request.max_tokens ?? 2000,
-                response_format: { type: "json_object" }
+                // Only include response_format if it's OpenAI to avoid breaking generic providers
+                ...(url.includes('openai.com') ? { response_format: { type: "json_object" } } : {})
             })
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`OpenAI API error: ${JSON.stringify(error)}`);
+            const error = await response.json().catch(() => ({ error: 'Unknown API error' }));
+            throw new Error(`${url} API error: ${JSON.stringify(error)}`);
         }
 
         const data = await response.json() as any;

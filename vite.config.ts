@@ -186,9 +186,47 @@ export default defineConfig(({ mode }) => {
                   } else if (apiKeyRecord.provider === 'anthropic') {
                     models = [
                       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Most intelligent model' },
+                      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast and smart' },
                       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Powerful model for complex tasks' },
                       { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fast and compact model' }
                     ]
+                  } else if (apiKeyRecord.provider === 'meta' || apiKeyRecord.provider === 'groq') {
+                    const resp = await fetch('https://api.groq.com/openai/v1/models', {
+                      headers: { Authorization: `Bearer ${apiKey}` }
+                    })
+                    const data = await resp.json() as any
+                    models = data.data?.filter((m: any) => m.id.includes('llama') || m.id.includes('mixtral')).map((m: any) => ({
+                      id: m.id,
+                      name: m.id,
+                      description: 'Groq Hosted Model'
+                    })) || []
+                  } else if (['mistral', 'grok', 'perplexity', 'deepseek', 'openrouter', 'cohere'].includes(apiKeyRecord.provider)) {
+                    let url = '';
+                    switch (apiKeyRecord.provider) {
+                      case 'mistral': url = 'https://api.mistral.ai/v1/models'; break;
+                      case 'grok': url = 'https://api.x.ai/v1/models'; break;
+                      case 'perplexity': url = 'https://api.perplexity.ai/chat/completions'; break;
+                      case 'deepseek': url = 'https://api.deepseek.com/models'; break;
+                      case 'openrouter': url = 'https://openrouter.ai/api/v1/models'; break;
+                      case 'cohere': url = 'https://api.cohere.com/v1/models'; break;
+                    }
+                    if (url) {
+                      try {
+                        const resp = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } })
+                        const data = await resp.json() as any
+                        models = (data.data || data.models || []).map((m: any) => ({
+                          id: m.id || m.name,
+                          name: m.id || m.name,
+                          description: `${apiKeyRecord.provider} Model`
+                        }))
+                      } catch (e) { console.error(`Failed to fetch local models for ${apiKeyRecord.provider}:`, e); }
+                    }
+                    if (!models || models.length === 0) {
+                      if (apiKeyRecord.provider === 'mistral') models = [{ id: 'mistral-large-latest', name: 'Mistral Large' }];
+                      if (apiKeyRecord.provider === 'grok') models = [{ id: 'grok-2-1212', name: 'Grok 2' }];
+                      if (apiKeyRecord.provider === 'perplexity') models = [{ id: 'llama-3.1-sonar-large-128k-online', name: 'Sonar Large' }];
+                      if (apiKeyRecord.provider === 'deepseek') models = [{ id: 'deepseek-chat', name: 'DeepSeek Chat' }];
+                    }
                   }
                   res.writeHead(200, { 'Content-Type': 'application/json' })
                   res.end(JSON.stringify({ models }))

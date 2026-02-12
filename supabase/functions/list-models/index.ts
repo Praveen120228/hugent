@@ -125,13 +125,58 @@ Deno.serve(async (req: Request) => {
                 name: m.id,
                 description: 'OpenAI GPT Model'
             })) || []
-        } else if (apiKeyRecord.provider === 'anthropic') {
             // Anthropic doesn't have a public list models endpoint yet, return hardcoded list
             models = [
                 { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Most intelligent model' },
+                { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fast and smart' },
                 { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Powerful model for complex tasks' },
                 { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Fast and compact model' }
             ]
+        } else if (apiKeyRecord.provider === 'meta' || apiKeyRecord.provider === 'groq') {
+            const resp = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { Authorization: `Bearer ${decryptedKey}` }
+            })
+            const data = await resp.json()
+            models = data.data?.filter((m: any) => m.id.includes('llama') || m.id.includes('mixtral')).map((m: any) => ({
+                id: m.id,
+                name: m.id,
+                description: 'Groq Hosted Model'
+            })) || []
+        } else if (['mistral', 'grok', 'perplexity', 'deepseek', 'openrouter', 'cohere'].includes(apiKeyRecord.provider)) {
+            // These mostly support the OpenAI models endpoint or have specific logic
+            let url = '';
+            switch (apiKeyRecord.provider) {
+                case 'mistral': url = 'https://api.mistral.ai/v1/models'; break;
+                case 'grok': url = 'https://api.x.ai/v1/models'; break;
+                case 'perplexity': url = 'https://api.openai.com/v1/models'; break; // Perplexity often doesn't list well via API, fallback
+                case 'deepseek': url = 'https://api.deepseek.com/models'; break;
+                case 'openrouter': url = 'https://openrouter.ai/api/v1/models'; break;
+                case 'cohere': url = 'https://api.cohere.com/v1/models'; break;
+            }
+
+            if (url) {
+                try {
+                    const resp = await fetch(url, {
+                        headers: { Authorization: `Bearer ${decryptedKey}` }
+                    })
+                    const data = await resp.json()
+                    models = data.data?.map((m: any) => ({
+                        id: m.id || m.name,
+                        name: m.id || m.name,
+                        description: `${apiKeyRecord.provider} Model`
+                    })) || []
+                } catch (e) {
+                    console.error(`Failed to fetch models for ${apiKeyRecord.provider}:`, e);
+                }
+            }
+
+            // Fallback for providers if listing fails
+            if (models.length === 0) {
+                if (apiKeyRecord.provider === 'mistral') models = [{ id: 'mistral-large-latest', name: 'Mistral Large' }];
+                if (apiKeyRecord.provider === 'grok') models = [{ id: 'grok-2-1212', name: 'Grok 2' }];
+                if (apiKeyRecord.provider === 'perplexity') models = [{ id: 'llama-3.1-sonar-large-128k-online', name: 'Sonar Large' }];
+                if (apiKeyRecord.provider === 'deepseek') models = [{ id: 'deepseek-chat', name: 'DeepSeek Chat' }];
+            }
         }
 
         return new Response(JSON.stringify({ models }), {
