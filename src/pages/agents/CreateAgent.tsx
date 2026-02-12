@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { toast } from 'sonner'
 import { Bot, Key, Sparkles, ArrowRight, Loader2, Check, X, AlertCircle, Clock, Zap, Lock } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, slugify } from '@/lib/utils'
 
 const STEPS = [
     { number: 1, title: 'Identity & Access' },
@@ -30,21 +30,11 @@ const PROVIDERS = [
         id: 'gemini',
         name: 'Google Gemini',
         models: [
-            'gemini-3-pro-preview',
-            'gemini-3-flash-preview',
-            'gemini-2.5-pro',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
             'gemini-2.0-flash',
-            'gemini-2.0-flash-lite',
-            'gemini-pro-latest',
-            'gemini-flash-latest',
-            'gemma-3-27b-it',
-            'gemma-3-12b-it',
-            'gemma-3-4b-it',
-            'gemma-3-1b-it',
             'gemini-1.5-pro',
-            'gemini-1.5-flash'
+            'gemini-1.5-flash',
+            'gemini-1.5-pro-latest',
+            'gemini-1.5-flash-latest'
         ]
     },
     {
@@ -118,6 +108,8 @@ export const CreateAgent: React.FC = () => {
     const [personality, setPersonality] = useState('')
     const [autonomyMode, setAutonomyMode] = useState<'manual' | 'scheduled' | 'full'>('scheduled')
     const [autonomyInterval, setAutonomyInterval] = useState(15)
+    const [isCustomModel, setIsCustomModel] = useState(false)
+    const [customModelId, setCustomModelId] = useState('')
 
     // Fetch user keys and agents on mount
     React.useEffect(() => {
@@ -272,9 +264,10 @@ export const CreateAgent: React.FC = () => {
 
             await agentService.createAgent({
                 user_id: user.id,
+                username: slugify(name),
                 name,
                 personality,
-                model,
+                model: isCustomModel ? customModelId : model,
                 api_key_id: finalApiKeyId,
                 characteristics: characteristics,
                 is_primary: false
@@ -392,7 +385,7 @@ export const CreateAgent: React.FC = () => {
                         <div className="bg-primary/5 rounded-2xl p-4 border border-primary/20 text-left mb-6">
                             <p className="text-xs font-bold text-primary uppercase mb-2">Pro Tip</p>
                             <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                                Upgrade to <span className="text-foreground font-bold">Pro</span> to manage up to 5 agents, or <span className="text-foreground font-bold">Organization</span> for unlimited autonomous entities.
+                                Upgrade to <span className="text-foreground font-bold">Organization</span> for unlimited autonomous entities and advanced features.
                             </p>
                         </div>
                     </div>
@@ -462,29 +455,43 @@ export const CreateAgent: React.FC = () => {
                                             options={PROVIDERS.map(p => ({ label: p.name, value: p.id }))}
                                             value={provider}
                                             onChange={handleProviderChange}
-                                            disabled={subscription?.plan_id !== 'organization'}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold ml-1">Model</label>
                                         <Select
-                                            options={
-                                                dynamicModels.length > 0
+                                            options={[
+                                                ...(dynamicModels.length > 0
                                                     ? dynamicModels.map(m => ({ label: m.name, value: m.id }))
                                                     : (PROVIDERS.find(p => p.id === provider)?.models.map(m => ({ label: m, value: m })) || [])
-                                            }
-                                            value={model}
-                                            onChange={setModel}
-                                            disabled={subscription?.plan_id !== 'organization'}
+                                                ),
+                                                { label: 'Other / Custom Model...', value: 'custom' }
+                                            ]}
+                                            value={isCustomModel ? 'custom' : model}
+                                            onChange={(val) => {
+                                                if (val === 'custom') {
+                                                    setIsCustomModel(true)
+                                                } else {
+                                                    setIsCustomModel(false)
+                                                    setModel(val)
+                                                }
+                                            }}
                                         />
                                     </div>
-                                    {subscription?.plan_id !== 'organization' && (
-                                        <p className="col-span-2 text-[10px] font-black uppercase tracking-widest text-amber-500 mt-0 flex items-center justify-end">
-                                            <Lock className="h-3 w-3 mr-1" />
-                                            Custom LLM Selection is an ORGANIZATION feature
-                                        </p>
-                                    )}
                                 </div>
+
+                                {isCustomModel && (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                        <label className="text-xs font-bold text-muted-foreground ml-1 uppercase">Enter Model ID</label>
+                                        <input
+                                            type="text"
+                                            className="w-full px-4 py-2 rounded-xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all font-mono text-sm"
+                                            placeholder="e.g. gpt-4-32k, claude-2.1"
+                                            value={customModelId}
+                                            onChange={(e) => setCustomModelId(e.target.value)}
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="space-y-4 pt-4 border-t">
                                     <div className="flex items-center justify-between">

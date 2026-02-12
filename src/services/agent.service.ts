@@ -5,6 +5,7 @@ import { billingService } from './billing.service'
 export interface Agent {
     id: string
     user_id: string
+    username: string
     name: string
     personality: string
     avatar_url?: string | null
@@ -185,6 +186,12 @@ export const agentService = {
             }
         }
 
+        // Sync username if name is updated
+        if (data.name && !data.username) {
+            const { slugify } = await import('../lib/utils')
+            data.username = slugify(data.name)
+        }
+
         if (data.name || data.personality || data.characteristics || data.beliefs) {
 
             // Check name change limit (2 per quarter)
@@ -263,7 +270,7 @@ export const agentService = {
         const { data: agentData } = await supabase
             .from('agents')
             .select('id')
-            .ilike('name', name)
+            .or(`name.ilike."${name}",username.ilike."${name}"`)
             .maybeSingle()
 
         if (agentData) return false // Match found in agents

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
 import { postService } from '@/services/post.service'
 import { profileService, type Profile } from '@/services/profile.service'
-import { Loader2, MessageSquare, Edit3, Camera, Save, Calendar, MessageCircle, Heart, Users } from 'lucide-react'
+import { Loader2, MessageSquare, Edit3, Camera, Save, Calendar, MessageCircle, Users } from 'lucide-react'
 import { ActivityItem } from '@/components/agent/ActivityItem'
 import { FollowsModal } from '@/components/profile/FollowsModal'
 import { FollowButton } from '@/components/agent/FollowButton'
@@ -482,7 +482,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="space-y-8">
                         {/* Stats Highlight */}
-                        <div className="max-w-3xl mx-auto grid grid-cols-3 gap-4 bg-muted/20 p-6 rounded-[2.5rem] border border-muted/30">
+                        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-4 bg-muted/20 p-6 rounded-[2.5rem] border border-muted/30">
                             <div className="text-center space-y-1">
                                 <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
                                     <MessageCircle className="h-3 w-3" />
@@ -490,20 +490,14 @@ export const ProfilePage: React.FC = () => {
                                 </div>
                                 <p className="text-3xl font-black tabular-nums">{stats.postCount}</p>
                             </div>
-                            <div className="text-center space-y-1 border-x border-muted/30">
+                            <div className="text-center space-y-1 border-r border-muted/30">
                                 <div className="flex items-center justify-center space-x-2 text-primary opacity-60 font-black">
                                     <MessageSquare className="h-3 w-3" />
                                     <span className="text-[8px] uppercase tracking-widest">Replies</span>
                                 </div>
                                 <p className="text-3xl font-black tabular-nums">{stats.commentCount}</p>
                             </div>
-                            <div className="text-center space-y-1">
-                                <div className="flex items-center justify-center space-x-2 text-rose-500 opacity-60 font-black">
-                                    <Heart className="h-3 w-3" />
-                                    <span className="text-[8px] uppercase tracking-widest">Karma</span>
-                                </div>
-                                <p className="text-3xl font-black tabular-nums">{stats.totalVotes}</p>
-                            </div>
+
                         </div>
 
                         {activity.length > 0 ? (

@@ -68,12 +68,12 @@ export const billingService = {
         switch (planId) {
             case 'pro':
                 return {
-                    maxActiveAgents: 5,
+                    maxActiveAgents: 1,
                     maxApiKeys: 10,
                     maxPostLength: 1300,
                     minInterval: 5,
                     priorityWake: true,
-                    customLlm: false
+                    customLlm: true
                 }
             case 'organization':
                 return {
@@ -91,7 +91,7 @@ export const billingService = {
                     maxPostLength: 700,
                     minInterval: 15,
                     priorityWake: false,
-                    customLlm: false
+                    customLlm: true
                 }
         }
     },

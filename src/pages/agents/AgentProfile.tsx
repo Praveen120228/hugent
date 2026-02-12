@@ -9,12 +9,11 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { useAuth } from '@/lib/auth-context'
 import { storageService } from '@/services/storage.service'
-import { billingService } from '@/services/billing.service'
 import { toast } from 'sonner'
 import { FollowButton } from '@/components/agent/FollowButton'
 import { AgentStudio } from '@/components/agent/AgentStudio'
 import { AgentAnalytics } from '@/components/agent/AgentAnalytics'
-import { Brain, FileText, Heart, Camera, Sparkles, Loader2, Users, BarChart3, ArrowLeft, Edit3, Save, Activity, Lock } from 'lucide-react'
+import { Brain, FileText, Heart, Camera, Sparkles, Loader2, Users, BarChart3, ArrowLeft, Edit3, Save, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/Dialog'
 
@@ -42,10 +41,11 @@ export const AgentProfilePage: React.FC = () => {
     const [editName, setEditName] = useState('')
     const [editPersonality, setEditPersonality] = useState('')
     const [editModel, setEditModel] = useState('')
+    const [isCustomModel, setIsCustomModel] = useState(false)
+    const [customModelId, setCustomModelId] = useState('')
     const [availableModels] = useState<{ id: string, name: string }[]>([])
     const [loadingModels] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
-    const [subscription, setSubscription] = useState<any>(null)
 
     const isOwner = user && profile && profile.user_id === user.id
 
@@ -75,11 +75,6 @@ export const AgentProfilePage: React.FC = () => {
         loadProfile()
     }, [agentId])
 
-    useEffect(() => {
-        if (user) {
-            billingService.getUserSubscription(user.id).then(setSubscription)
-        }
-    }, [user])
 
     const loadMoreActivity = async () => {
         if (!agentId || loadingMore || !hasMore) return
@@ -178,7 +173,7 @@ export const AgentProfilePage: React.FC = () => {
             await agentService.updateAgent(agentId, {
                 name: editName,
                 personality: editPersonality,
-                model: editModel
+                model: isCustomModel ? customModelId : editModel
             })
 
             // Refresh profile to get updated stats and cooldown info
@@ -260,21 +255,21 @@ export const AgentProfilePage: React.FC = () => {
                             <div className="space-y-2">
                                 <label className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">AI Model</label>
                                 <select
-                                    disabled={subscription?.plan_id !== 'organization'}
                                     className={cn(
-                                        "w-full px-4 md:px-6 py-4 rounded-2xl border transition-all font-bold text-lg appearance-none",
-                                        subscription?.plan_id === 'organization'
-                                            ? "bg-muted/30 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground"
-                                            : "bg-muted/50 text-muted-foreground cursor-not-allowed opacity-60"
+                                        "w-full px-4 md:px-6 py-4 rounded-2xl border transition-all font-bold text-lg appearance-none bg-muted/30 focus:ring-4 focus:ring-primary/10 focus:border-primary text-foreground"
                                     )}
-                                    value={editModel}
-                                    onChange={(e) => setEditModel(e.target.value)}
+                                    value={isCustomModel ? 'custom' : editModel}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'custom') {
+                                            setIsCustomModel(true)
+                                        } else {
+                                            setIsCustomModel(false)
+                                            setEditModel(e.target.value)
+                                        }
+                                    }}
                                 >
-                                    {subscription?.plan_id !== 'organization' ? (
-                                        <option value="">Standard (Smart Selection)</option>
-                                    ) : (
-                                        <option value="">Default (Provider Recommended)</option>
-                                    )}
+                                    <option value="">Default (Provider Recommended)</option>
+                                    <option value="custom">Other / Custom Model...</option>
                                     {(!profile.apiKeyProvider || profile.apiKeyProvider === 'openai') && (
                                         <optgroup label="OpenAI">
                                             <option value="gpt-4o">GPT-4o</option>
@@ -307,19 +302,7 @@ export const AgentProfilePage: React.FC = () => {
                                                 ))
                                             ) : (
                                                 <>
-                                                    <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                                                    <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-                                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                                                     <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                                    <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
-                                                    <option value="gemini-pro-latest">Gemini Pro Latest</option>
-                                                    <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                                                    <option value="gemma-3-27b-it">Gemma 3 27b</option>
-                                                    <option value="gemma-3-12b-it">Gemma 3 12b</option>
-                                                    <option value="gemma-3-4b-it">Gemma 3 4b</option>
-                                                    <option value="gemma-3-1b-it">Gemma 3 1b</option>
                                                     <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                                     <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                                                 </>
@@ -327,19 +310,7 @@ export const AgentProfilePage: React.FC = () => {
                                         </optgroup>
                                     ) : (!profile.apiKeyProvider && (
                                         <optgroup label="Google">
-                                            <option value="gemini-3-pro-preview">Gemini 3 Pro Preview</option>
-                                            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview</option>
-                                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-                                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                                            <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                                             <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                                            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
-                                            <option value="gemini-pro-latest">Gemini Pro Latest</option>
-                                            <option value="gemini-flash-latest">Gemini Flash Latest</option>
-                                            <option value="gemma-3-27b-it">Gemma 3 27b</option>
-                                            <option value="gemma-3-12b-it">Gemma 3 12b</option>
-                                            <option value="gemma-3-4b-it">Gemma 3 4b</option>
-                                            <option value="gemma-3-1b-it">Gemma 3 1b</option>
                                             <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                                             <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                                         </optgroup>
@@ -398,13 +369,20 @@ export const AgentProfilePage: React.FC = () => {
                                         </optgroup>
                                     )}
                                 </select>
-                                {subscription?.plan_id !== 'organization' && (
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-500 mt-2 flex items-center">
-                                        <Lock className="h-3 w-3 mr-1" />
-                                        Custom LLM Selection is an ORGANIZATION feature
-                                    </p>
-                                )}
                             </div>
+
+                            {isCustomModel && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                                    <label className="text-xs font-black uppercase tracking-widest text-muted-foreground px-1">Enter Model ID</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 md:px-6 py-4 rounded-2xl border bg-muted/30 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all font-mono text-sm text-foreground"
+                                        placeholder="e.g. gpt-4-32k, claude-2.1"
+                                        value={customModelId}
+                                        onChange={(e) => setCustomModelId(e.target.value)}
+                                    />
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex space-x-4 pt-4">
