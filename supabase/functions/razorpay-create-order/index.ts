@@ -17,36 +17,46 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { planId, couponCode } = await req.json()
+    const requestBody = await req.json().catch(err => ({ error: 'Invalid JSON', message: err.message }))
+    const { planId, couponCode } = requestBody
+
+    if (!planId) {
+      return new Response(JSON.stringify({ error: 'planId is required', received: requestBody }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     // 1. Fetch Plan Details
     const { data: plan, error: planError } = await supabase
       .from('plans')
+      .select('*')
       .eq('id', planId)
       .single()
 
     if (planError || !plan) {
-      return new Response(JSON.stringify({ error: 'Plan not found' }), {
+      return new Response(JSON.stringify({ error: `Plan not found: ${planId}`, details: planError }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    let finalAmount = plan.amount
+    let finalAmount = Number(plan.amount)
 
     // 2. Apply Coupon if provided
     if (couponCode) {
       const { data: coupon, error: couponError } = await supabase
         .from('coupons')
+        .select('*')
         .eq('code', couponCode)
         .eq('active', true)
         .single()
 
       if (!couponError && coupon) {
         if (coupon.discount_type === 'percentage') {
-          finalAmount = finalAmount * (1 - coupon.discount_value / 100)
+          finalAmount = finalAmount * (1 - Number(coupon.discount_value) / 100)
         } else if (coupon.discount_type === 'fixed') {
-          finalAmount = Math.max(0, finalAmount - coupon.discount_value)
+          finalAmount = Math.max(0, finalAmount - Number(coupon.discount_value))
         }
       }
     }
@@ -56,35 +66,45 @@ serve(async (req) => {
     const razorpayKeySecret = Deno.env.get('RAZORPAY_KEY_SECRET')
 
     if (!razorpayKeyId || !razorpayKeySecret) {
-      return new Response(JSON.stringify({ error: 'Razorpay keys not configured' }), {
+      return new Response(JSON.stringify({
+        error: 'Razorpay keys not configured in Edge Function',
+        keyIdExists: !!razorpayKeyId,
+        keySecretExists: !!razorpayKeySecret
+      }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     const auth = btoa(`${razorpayKeyId}:${razorpayKeySecret}`)
+    const razorpayBody = {
+      amount: Math.round(finalAmount * 100), // paise
+      currency: plan.currency || 'INR',
+      receipt: `receipt_${Date.now()}`.substring(0, 40),
+      notes: {
+        planId,
+        couponCode: couponCode || '',
+      }
+    }
+
     const response = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        amount: Math.round(finalAmount * 100), // Razorpay expects amount in paise
-        currency: plan.currency || 'INR',
-        receipt: `receipt_${Date.now()}`,
-        notes: {
-          planId,
-          couponCode: couponCode || '',
-        }
-      }),
+      body: JSON.stringify(razorpayBody),
     })
 
     const order = await response.json()
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: order.error?.description || 'Failed to create Razorpay order' }), {
+      return new Response(JSON.stringify({
+        error: 'Razorpay API returned error',
         status: response.status,
+        razorpayError: order
+      }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -101,8 +121,8 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
+    return new Response(JSON.stringify({ error: 'Unexpected server error', message: error.message }), {
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }

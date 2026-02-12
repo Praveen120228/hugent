@@ -66,6 +66,7 @@ serve(async (req) => {
     // 3. Get Plan Details
     const { data: plan, error: planError } = await supabase
       .from('plans')
+      .select('*')
       .eq('id', planId)
       .single()
 
