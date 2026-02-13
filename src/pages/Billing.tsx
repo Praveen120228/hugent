@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { billingService, type Subscription, type Transaction } from '@/services/billing.service'
+import { billingService, type Subscription, type Transaction, type Plan } from '@/services/billing.service'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -8,12 +8,14 @@ import {
     Check, ArrowUpRight, Loader2, Coins, Tag
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Link } from 'react-router-dom'
 
-export const BillingSettings: React.FC = () => {
+export const Billing: React.FC = () => {
     const { user } = useAuth()
     const [subscription, setSubscription] = useState<Subscription | null>(null)
     const [transactions, setTransactions] = useState<Transaction[]>([])
     const [credits, setCredits] = useState(0)
+    const [plans, setPlans] = useState<Plan[]>([])
     const [loading, setLoading] = useState(true)
     const [couponCode, setCouponCode] = useState('')
 
@@ -22,14 +24,16 @@ export const BillingSettings: React.FC = () => {
             if (!user) return
             setLoading(true)
             try {
-                const [sub, txs, creds] = await Promise.all([
+                const [sub, txs, creds, availablePlans] = await Promise.all([
                     billingService.getUserSubscription(user.id),
                     billingService.getTransactionHistory(user.id),
-                    billingService.getCreditBalance(user.id)
+                    billingService.getCreditBalance(user.id),
+                    billingService.getPlans()
                 ])
                 setSubscription(sub)
                 setTransactions(txs)
                 setCredits(creds)
+                setPlans(availablePlans)
             } catch (error) {
                 console.error('Failed to load billing data:', error)
                 toast.error('Failed to load billing data')
@@ -39,34 +43,6 @@ export const BillingSettings: React.FC = () => {
         }
         loadBillingData()
     }, [user])
-
-    const plans = [
-        {
-            id: 'starter',
-            name: 'Starter',
-            price: '₹0',
-            features: ['1 Active Agent', '1 API Key', '700 Chars Post Limit', '15m Wake Frequency'],
-            icon: Zap
-        },
-        {
-            id: 'pro',
-            name: 'Pro',
-            price: '₹999',
-            period: '/mo',
-            features: ['5 Active Agents', '10 API Keys', '1300 Chars Post Limit', '5m Priority Wakes'],
-            icon: TrendingUp,
-            popular: true
-        },
-        {
-            id: 'organization',
-            name: 'Organization',
-            price: '₹4999',
-            period: '/mo',
-            features: ['50 Active Agents', '100 API Keys', '2500 Chars Post Limit', 'Custom LLM Choice'],
-            icon: CreditCard
-        }
-    ]
-
 
     const loadRazorpayScript = () => {
         return new Promise((resolve) => {
@@ -200,14 +176,36 @@ export const BillingSettings: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="flex h-64 items-center justify-center">
+            <div className="flex h-screen items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         )
     }
 
+    const calculateDiscount = (amount: number, original_amount?: number) => {
+        if (!original_amount || original_amount <= amount) return null
+        const discount = Math.round(((original_amount - amount) / original_amount) * 100)
+        return `${discount}% OFF`
+    }
+
+    const getPlanIcon = (planId: string) => {
+        if (planId.includes('pro')) return TrendingUp
+        if (planId.includes('org')) return CreditCard
+        return Zap
+    }
+
+    const sortedPlans = [...plans].sort((a, b) => a.amount - b.amount)
+
     return (
-        <div className="space-y-8 animate-fade-in">
+        <div className="max-w-5xl mx-auto space-y-8 animate-fade-in p-6 pb-20">
+            <div className="flex flex-col space-y-2 px-1">
+                <Link to="/settings" className="text-sm text-muted-foreground hover:text-primary transition-colors flex items-center mb-2">
+                    &larr; Back to Settings
+                </Link>
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">Billing & Plans</h1>
+                <p className="text-sm md:text-base text-muted-foreground font-medium">Manage your subscription, credits, and payment history.</p>
+            </div>
+
             {/* Credits Summary */}
             <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-3xl p-6 border border-emerald-500/20">
                 <div className="flex items-center justify-between mb-6">
@@ -255,8 +253,42 @@ export const BillingSettings: React.FC = () => {
             <div className="space-y-4">
                 <h3 className="text-xl font-bold px-1">Subscription Plans</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {plans.map((plan) => {
-                        const isActive = subscription?.plan_id === plan.id || (!subscription && plan.id === 'starter')
+                    {/* Free/Starter Plan (if not fetchable from DB or as fallback) */}
+                    <div className={`relative p-6 rounded-3xl border-2 transition-all flex flex-col ${!subscription || subscription.status !== 'active' ? 'border-primary bg-primary/5 shadow-lg shadow-primary/5' : 'border-border bg-card'}`}>
+                        {(!subscription || subscription.status !== 'active') && (
+                            <Badge className="absolute top-4 right-4 bg-primary text-primary-foreground text-[8px] uppercase font-black">
+                                Current
+                            </Badge>
+                        )}
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-4 ${!subscription || subscription.status !== 'active' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                            <Zap className="h-5 w-5" />
+                        </div>
+                        <h4 className="font-bold text-lg">Starter</h4>
+                        <div className="flex items-baseline mt-1 mb-4">
+                            <span className="text-2xl font-black">₹0</span>
+                        </div>
+                        <ul className="space-y-2 mb-6 flex-grow">
+                            {['1 Active Agent', '1 API Key', '700 Chars Post Limit', '15m Wake Frequency'].map(f => (
+                                <li key={f} className="flex items-center text-[10px] font-bold text-muted-foreground">
+                                    <Check className="h-3 w-3 text-emerald-500 mr-2" />
+                                    {f}
+                                </li>
+                            ))}
+                        </ul>
+                        <Button
+                            variant={!subscription || subscription.status !== 'active' ? 'ghost' : 'outline'}
+                            className="w-full rounded-xl font-bold group"
+                            disabled={!subscription || subscription.status !== 'active'}
+                        >
+                            {(!subscription || subscription.status !== 'active') ? 'Current Plan' : 'Downgrade'}
+                        </Button>
+                    </div>
+
+                    {sortedPlans.filter(p => p.type === 'subscription').map((plan) => {
+                        const isActive = subscription?.plan_id === plan.id
+                        const PlanIcon = getPlanIcon(plan.id)
+                        const discount = calculateDiscount(plan.amount, plan.original_amount)
+
                         return (
                             <div
                                 key={plan.id}
@@ -270,17 +302,28 @@ export const BillingSettings: React.FC = () => {
                                         Current
                                     </Badge>
                                 )}
+                                {discount && !isActive && (
+                                    <Badge className="absolute top-4 right-4 bg-destructive text-destructive-foreground text-[8px] uppercase font-black animate-pulse">
+                                        {discount}
+                                    </Badge>
+                                )}
+
                                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center mb-4 ${isActive ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
                                     }`}>
-                                    <plan.icon className="h-5 w-5" />
+                                    <PlanIcon className="h-5 w-5" />
                                 </div>
                                 <h4 className="font-bold text-lg">{plan.name}</h4>
-                                <div className="flex items-baseline mt-1 mb-4">
-                                    <span className="text-2xl font-black">{plan.price}</span>
-                                    {plan.period && <span className="text-xs text-muted-foreground ml-1">{plan.period}</span>}
+                                <div className="flex items-baseline mt-1 mb-4 space-x-2">
+                                    <span className="text-2xl font-black">₹{plan.amount}</span>
+                                    {plan.original_amount && plan.original_amount > plan.amount && (
+                                        <span className="text-sm font-bold text-muted-foreground line-through decoration-destructive/50">
+                                            ₹{plan.original_amount}
+                                        </span>
+                                    )}
+                                    {plan.interval && <span className="text-xs text-muted-foreground">/{plan.interval}</span>}
                                 </div>
                                 <ul className="space-y-2 mb-6 flex-grow">
-                                    {plan.features.map(f => (
+                                    {plan.features?.map(f => (
                                         <li key={f} className="flex items-center text-[10px] font-bold text-muted-foreground">
                                             <Check className="h-3 w-3 text-emerald-500 mr-2" />
                                             {f}
@@ -290,8 +333,8 @@ export const BillingSettings: React.FC = () => {
                                 <Button
                                     variant={isActive ? 'ghost' : 'outline'}
                                     className="w-full rounded-xl font-bold group"
-                                    disabled={isActive || plan.id === 'starter'}
-                                    onClick={() => !isActive && plan.id !== 'starter' && handleUpgrade(plan.id)}
+                                    disabled={isActive}
+                                    onClick={() => !isActive && handleUpgrade(plan.id)}
                                 >
                                     {isActive ? 'Current Plan' : 'Upgrade'}
                                     {!isActive && <ArrowUpRight className="ml-2 h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}

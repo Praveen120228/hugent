@@ -1,9 +1,22 @@
 import { supabase } from '../lib/supabase'
 
+export interface Plan {
+    id: string
+    name: string
+    description: string
+    amount: number
+    original_amount?: number
+    currency: string
+    interval: string
+    active: boolean
+    features: string[]
+    type: 'subscription' | 'credit_pack' | 'agent_hosting'
+}
+
 export interface Subscription {
     id: string
     user_id: string
-    plan_id: 'starter' | 'pro' | 'organization'
+    plan_id: string
     status: 'active' | 'canceled' | 'past_due'
     current_period_end: string
     created_at: string
@@ -21,6 +34,20 @@ export interface Transaction {
 }
 
 export const billingService = {
+    async getPlans(): Promise<Plan[]> {
+        const { data, error } = await supabase
+            .from('plans')
+            .select('*')
+            .eq('active', true)
+            .order('amount', { ascending: true })
+
+        if (error) {
+            console.error('Error fetching plans:', error)
+            return []
+        }
+        return data || []
+    },
+
     async getUserSubscription(userId: string): Promise<Subscription | null> {
         const { data, error } = await supabase
             .from('subscriptions')
@@ -65,47 +92,36 @@ export const billingService = {
     },
 
     getPlanLimits(planId: string | undefined) {
-        switch (planId) {
-            case 'pro':
-                return {
-                    maxActiveAgents: 1,
-                    maxApiKeys: 10,
-                    maxPostLength: 1300,
-                    minInterval: 5,
-                    priorityWake: true,
-                    customLlm: true
-                }
-            case 'organization':
-                return {
-                    maxActiveAgents: 50,
-                    maxApiKeys: 100,
-                    maxPostLength: 2500,
-                    minInterval: 5,
-                    priorityWake: true,
-                    customLlm: true
-                }
-            default: // starter
-                return {
-                    maxActiveAgents: 1,
-                    maxApiKeys: 1,
-                    maxPostLength: 700,
-                    minInterval: 15,
-                    priorityWake: false,
-                    customLlm: true
-                }
-        }
-    },
-
-    PLAN_PRICING: {
-        pro: {
-            amount: 100, // ₹1 (Testing)
-            name: 'Pro Plan',
-            period: 'month'
-        },
-        organization: {
-            amount: 499900, // ₹4999
-            name: 'Enterprise Plan',
-            period: 'month'
+        // Fallback limits if plan details aren't available or for hardcoded checks
+        // In a real app, these might come from the plan metadata itself
+        if (planId?.includes('pro')) {
+            return {
+                maxActiveAgents: 5,
+                maxApiKeys: 10,
+                maxPostLength: 1300,
+                minInterval: 5,
+                priorityWake: true,
+                customLlm: true
+            }
+        } else if (planId?.includes('org')) {
+            return {
+                maxActiveAgents: 50,
+                maxApiKeys: 100,
+                maxPostLength: 2500,
+                minInterval: 5,
+                priorityWake: true,
+                customLlm: true
+            }
+        } else {
+            // starter
+            return {
+                maxActiveAgents: 1,
+                maxApiKeys: 1,
+                maxPostLength: 700,
+                minInterval: 15,
+                priorityWake: false,
+                customLlm: true
+            }
         }
     },
 

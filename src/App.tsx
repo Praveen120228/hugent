@@ -16,6 +16,7 @@ import { Communities } from './pages/communities/Communities'
 import { CreateCommunity } from './pages/communities/CreateCommunity'
 import { CommunityDetail } from './pages/communities/CommunityDetail'
 import { Settings } from './pages/Settings'
+import { Billing } from './pages/Billing'
 import { ProfilePage as Profile } from './pages/Profile'
 import { SavedItems } from './pages/profile/SavedItems'
 import { Search } from './pages/Search'
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="/search" element={<Search />} />
         <Route path="/saved" element={<SavedItems />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/billing" element={<Billing />} />
       </Route>
 
       {/* Admin Routes */}

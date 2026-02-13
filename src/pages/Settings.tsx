@@ -2,23 +2,22 @@ import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { agentService, type Agent } from '@/services/agent.service'
 import { apiKeyService, type ApiKey } from '@/services/api-key.service'
-import { Key, Shield, Bell, Moon, Sun, Laptop, Plus, Trash2, Eye, EyeOff, Bot, Activity, ChevronRight, Zap, Loader2 } from 'lucide-react'
+import { Key, Shield, Bell, Moon, Sun, Laptop, Plus, Trash2, Eye, EyeOff, Bot, Activity, ChevronRight, Zap, Loader2, CreditCard as BillingIcon, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/lib/theme-context'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/Dialog'
 import { billingService } from '@/services/billing.service'
-import { BillingSettings } from '@/components/settings/BillingSettings'
-import { CreditCard as BillingIcon } from 'lucide-react'
 
 export const Settings: React.FC = () => {
     const { user } = useAuth()
     const { theme: currentTheme, setTheme } = useTheme()
     const [searchParams, setSearchParams] = useSearchParams()
-    const activeTab = (searchParams.get('tab') as 'agents' | 'keys' | 'notifications' | 'appearance' | 'billing') || 'agents'
+    const navigate = useNavigate()
+    const activeTab = (searchParams.get('tab') as 'agents' | 'keys' | 'notifications' | 'appearance') || 'agents'
 
     const setActiveTab = (tab: string) => {
         setSearchParams({ tab })
@@ -30,6 +29,11 @@ export const Settings: React.FC = () => {
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
     const [keysLoading, setKeysLoading] = useState(false)
     const [isKeyModalOpen, setIsKeyModalOpen] = useState(false)
+    const [newKey, setNewKey] = useState('')
+    const [newKeyLabel, setNewKeyLabel] = useState('')
+    const [newKeyProvider, setNewKeyProvider] = useState('openai')
+    const [isSubmittingKey, setIsSubmittingKey] = useState(false)
+
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -91,81 +95,25 @@ export const Settings: React.FC = () => {
         }
     }
 
-    const AddKeyModal = () => {
-        const [provider, setProvider] = useState('openai')
-        const [key, setKey] = useState('')
-        const [label, setLabel] = useState('')
-        const [isSubmitting, setIsSubmitting] = useState(false)
-
-        const handleSubmit = async (e: React.FormEvent) => {
-            e.preventDefault()
-            if (!user) return
-            setIsSubmitting(true)
-            try {
-                const newKey = await apiKeyService.createApiKey(user.id, provider, key, label)
-                if (newKey) {
-                    setApiKeys(prev => [newKey, ...prev])
-                    toast.success('API key added successfully')
-                    setIsKeyModalOpen(false)
-                }
-            } catch (error: any) {
-                toast.error(error.message || 'Failed to add API key')
-            } finally {
-                setIsSubmitting(false)
+    const handleAddKey = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!user) return
+        setIsSubmittingKey(true)
+        try {
+            const addedKey = await apiKeyService.createApiKey(user.id, newKeyProvider, newKey, newKeyLabel)
+            if (addedKey) {
+                setApiKeys(prev => [addedKey, ...prev])
+                toast.success('API key added successfully')
+                setIsKeyModalOpen(false)
+                setNewKey('')
+                setNewKeyLabel('')
             }
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to add API key')
+        } finally {
+            setIsSubmittingKey(false)
         }
-
-        return (
-            <Dialog open={isKeyModalOpen} onOpenChange={setIsKeyModalOpen}>
-                <DialogContent>
-                    <DialogTitle>Add New API Key</DialogTitle>
-                    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Provider</label>
-                            <select
-                                className="w-full px-3 py-2 rounded-md border bg-background"
-                                value={provider}
-                                onChange={(e) => setProvider(e.target.value)}
-                            >
-                                <option value="openai">OpenAI</option>
-                                <option value="anthropic">Anthropic</option>
-                                <option value="gemini">Google Gemini</option>
-                                <option value="grok">xAI Grok</option>
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Label (Optional)</label>
-                            <input
-                                type="text"
-                                className="w-full px-3 py-2 rounded-md border bg-background"
-                                placeholder="e.g. Production Key"
-                                value={label}
-                                onChange={(e) => setLabel(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">API Key</label>
-                            <input
-                                type="text"
-                                className="w-full px-3 py-2 rounded-md border bg-background font-mono text-sm"
-                                placeholder="sk-..."
-                                value={key}
-                                onChange={(e) => setKey(e.target.value)}
-                                required
-                            />
-                        </div>
-                        <div className="flex justify-end space-x-2 mt-6">
-                            <Button type="button" variant="ghost" onClick={() => setIsKeyModalOpen(false)}>Cancel</Button>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Key'}
-                            </Button>
-                        </div>
-                    </form>
-                </DialogContent>
-            </Dialog>
-        )
     }
-
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 md:space-y-8 animate-fade-in pb-20">
@@ -176,28 +124,44 @@ export const Settings: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-4 md:gap-8">
                 {/* Sidebar Nav */}
-                <div className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto no-scrollbar px-4 md:px-0 pb-2 lg:pb-0">
-                    {[
-                        { id: 'agents', label: 'My Agents', icon: Bot },
-                        { id: 'keys', label: 'API Keys', icon: Key },
-                        { id: 'billing', label: 'Billing & Plans', icon: BillingIcon },
-                        { id: 'notifications', label: 'Notifications', icon: Bell },
-                        { id: 'appearance', label: 'Appearance', icon: Sun },
-                    ].map((item) => (
-                        <button
-                            key={item.id}
-                            onClick={() => setActiveTab(item.id as any)}
-                            className={cn(
-                                "flex items-center space-x-3 px-5 py-3 lg:px-4 lg:py-3 rounded-full lg:rounded-2xl text-sm font-bold transition-all whitespace-nowrap lg:whitespace-normal",
-                                activeTab === item.id
-                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                    : "bg-muted/50 lg:bg-transparent hover:bg-accent text-muted-foreground hover:text-foreground"
-                            )}
-                        >
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.label}</span>
-                        </button>
-                    ))}
+                <div className="flex flex-col space-y-2">
+                    <div className="flex lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2 overflow-x-auto no-scrollbar px-4 md:px-0 pb-2 lg:pb-0">
+                        {[
+                            { id: 'agents', label: 'My Agents', icon: Bot },
+                            { id: 'keys', label: 'API Keys', icon: Key },
+                            { id: 'notifications', label: 'Notifications', icon: Bell },
+                            { id: 'appearance', label: 'Appearance', icon: Sun },
+                        ].map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveTab(item.id as any)}
+                                className={cn(
+                                    "flex items-center space-x-3 px-5 py-3 lg:px-4 lg:py-3 rounded-full lg:rounded-2xl text-sm font-bold transition-all whitespace-nowrap lg:whitespace-normal",
+                                    activeTab === item.id
+                                        ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                                        : "bg-muted/50 lg:bg-transparent hover:bg-accent text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                <item.icon className="h-4 w-4" />
+                                <span>{item.label}</span>
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Separate Billing Link */}
+                    <div className="px-4 md:px-0 lg:mt-6 lg:pt-6 lg:border-t">
+                        <Link to="/billing">
+                            <button
+                                className="w-full flex items-center justify-between px-5 py-3 lg:px-4 lg:py-3 rounded-full lg:rounded-2xl text-sm font-bold transition-all bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                            >
+                                <div className="flex items-center space-x-3">
+                                    <BillingIcon className="h-4 w-4" />
+                                    <span>Billing & Plans</span>
+                                </div>
+                                <ExternalLink className="h-3 w-3 opacity-60" />
+                            </button>
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Content Area */}
@@ -222,7 +186,7 @@ export const Settings: React.FC = () => {
                                         <Button
                                             size="sm"
                                             className="rounded-xl font-bold bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20"
-                                            onClick={() => setActiveTab('billing')}
+                                            onClick={() => navigate('/billing')}
                                         >
                                             <Zap className="mr-2 h-4 w-4" />
                                             Upgrade
@@ -331,7 +295,7 @@ export const Settings: React.FC = () => {
                                         <Button
                                             size="sm"
                                             className="rounded-xl font-bold bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-500/20"
-                                            onClick={() => setActiveTab('billing')}
+                                            onClick={() => navigate('/billing')}
                                         >
                                             <Zap className="mr-2 h-4 w-4" />
                                             Upgrade
@@ -417,7 +381,54 @@ export const Settings: React.FC = () => {
                                     We encrypt your keys at rest. However, remember to periodically rotate your keys and use restricted scopes where possible.
                                 </div>
                             </div>
-                            <AddKeyModal />
+
+                            <Dialog open={isKeyModalOpen} onOpenChange={setIsKeyModalOpen}>
+                                <DialogContent>
+                                    <DialogTitle>Add New API Key</DialogTitle>
+                                    <form onSubmit={handleAddKey} className="space-y-4 mt-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Provider</label>
+                                            <select
+                                                className="w-full px-3 py-2 rounded-md border bg-background"
+                                                value={newKeyProvider}
+                                                onChange={(e) => setNewKeyProvider(e.target.value)}
+                                            >
+                                                <option value="openai">OpenAI</option>
+                                                <option value="anthropic">Anthropic</option>
+                                                <option value="gemini">Google Gemini</option>
+                                                <option value="grok">xAI Grok</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">Label (Optional)</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-3 py-2 rounded-md border bg-background"
+                                                placeholder="e.g. Production Key"
+                                                value={newKeyLabel}
+                                                onChange={(e) => setNewKeyLabel(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">API Key</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-3 py-2 rounded-md border bg-background font-mono text-sm"
+                                                placeholder="sk-..."
+                                                value={newKey}
+                                                onChange={(e) => setNewKey(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                        <div className="flex justify-end space-x-2 mt-6">
+                                            <Button type="button" variant="ghost" onClick={() => setIsKeyModalOpen(false)}>Cancel</Button>
+                                            <Button type="submit" disabled={isSubmittingKey}>
+                                                {isSubmittingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add Key'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
                         </div>
                     )}
 
@@ -457,13 +468,8 @@ export const Settings: React.FC = () => {
                             </div>
                         </div>
                     )}
-
-                    {activeTab === 'billing' && (
-                        <BillingSettings />
-                    )}
                 </div>
             </div >
         </div >
     )
 }
-
