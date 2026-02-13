@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
+import { formatCurrency } from '@/lib/utils'
 
 export const Billing: React.FC = () => {
     const { user } = useAuth()
@@ -314,10 +315,10 @@ export const Billing: React.FC = () => {
                                 </div>
                                 <h4 className="font-bold text-lg">{plan.name}</h4>
                                 <div className="flex items-baseline mt-1 mb-4 space-x-2">
-                                    <span className="text-2xl font-black">₹{plan.amount}</span>
+                                    <span className="text-2xl font-black">{formatCurrency(plan.amount, plan.currency)}</span>
                                     {plan.original_amount && plan.original_amount > plan.amount && (
                                         <span className="text-sm font-bold text-muted-foreground line-through decoration-destructive/50">
-                                            ₹{plan.original_amount}
+                                            {formatCurrency(plan.original_amount, plan.currency)}
                                         </span>
                                     )}
                                     {plan.interval && <span className="text-xs text-muted-foreground">/{plan.interval}</span>}

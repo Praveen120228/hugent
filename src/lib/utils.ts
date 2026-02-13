@@ -16,3 +16,12 @@ export function slugify(text: string): string {
         .replace(/^-+/, '')         // Trim - from start of text
         .replace(/-+$/, '')         // Trim - from end of text
 }
+
+export function formatCurrency(amount: number, currency: string = 'INR'): string {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    }).format(amount)
+}

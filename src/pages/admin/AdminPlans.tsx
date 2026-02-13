@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Edit2, Check, X, Plus, Save, Trash2 } from 'lucide-react'
+import { formatCurrency } from '@/lib/utils'
+import { Edit2, Plus, Save, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { toast } from 'sonner'
 import { Badge } from '../../components/ui/Badge'
@@ -124,6 +125,89 @@ export const AdminPlans: React.FC = () => {
         return `${discount}% OFF`
     }
 
+    const STANDARD_PLANS: Record<string, Partial<Plan>> = {
+        'starter': {
+            name: 'Starter',
+            description: 'Perfect for exploring AI agents. Includes basic features and limited successful runs.',
+            amount: 0,
+            original_amount: 0,
+            currency: 'INR',
+            interval: 'month',
+            type: 'subscription',
+            active: true
+        },
+        'pro_monthly': {
+            name: 'Pro Monthly',
+            description: 'For serious creators. Priority wake cycles and increased limits.',
+            amount: 2900,
+            original_amount: 3500,
+            currency: 'INR',
+            interval: 'month',
+            type: 'subscription',
+            active: true
+        },
+        'pro_yearly': {
+            name: 'Pro Yearly',
+            description: 'Best value for serious creators. All Pro features with 2 months free.',
+            amount: 29000,
+            original_amount: 34800,
+            currency: 'INR',
+            interval: 'year',
+            type: 'subscription',
+            active: true
+        },
+        'org_monthly': {
+            name: 'Organization Monthly',
+            description: 'For teams and businesses. Advanced orchestration, custom LLMs, and priority support.',
+            amount: 9900,
+            original_amount: 11500,
+            currency: 'INR',
+            interval: 'month',
+            type: 'subscription',
+            active: true
+        },
+        'org_yearly': {
+            name: 'Organization Yearly',
+            description: 'Maximum power for your organization. Save 20% with annual billing.',
+            amount: 99000,
+            original_amount: 118800,
+            currency: 'INR',
+            interval: 'year',
+            type: 'subscription',
+            active: true
+        },
+        'credits_500': {
+            name: '500 Credits Pack',
+            description: 'Add 500 orchestration credits to your account. Credits never expire.',
+            amount: 500,
+            original_amount: 600,
+            currency: 'INR',
+            interval: '',
+            type: 'credit_pack',
+            active: true
+        },
+        'credits_1000': {
+            name: '1000 Credits Pack',
+            description: 'Add 1000 orchestration credits to your account. Best value for high volume.',
+            amount: 900,
+            original_amount: 1200,
+            currency: 'INR',
+            interval: '',
+            type: 'credit_pack',
+            active: true
+        },
+        'agent_hosting_basic': {
+            name: 'Basic Agent Hosting',
+            description: 'Host a single autonomous agent with 24/7 uptime guarantee.',
+            amount: 1500,
+            original_amount: 1800,
+            currency: 'INR',
+            interval: 'month',
+            type: 'agent_hosting',
+            active: true
+        }
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -150,8 +234,31 @@ export const AdminPlans: React.FC = () => {
                                 placeholder="e.g. pro_monthly"
                                 disabled={!!editingPlan}
                                 value={editingPlan?.id || newPlan.id}
-                                onChange={e => showCreate ? setNewPlan({ ...newPlan, id: e.target.value }) : setEditingPlan({ ...editingPlan!, id: e.target.value })}
+                                onChange={e => {
+                                    const val = e.target.value
+                                    if (showCreate) {
+                                        const standardPlan = STANDARD_PLANS[val]
+                                        if (standardPlan) {
+                                            setNewPlan({ ...newPlan, id: val, ...standardPlan })
+                                        } else {
+                                            setNewPlan({ ...newPlan, id: val })
+                                        }
+                                    } else {
+                                        setEditingPlan({ ...editingPlan!, id: val })
+                                    }
+                                }}
+                                list="plan-suggestions"
                             />
+                            <datalist id="plan-suggestions">
+                                <option value="starter">Starter (Free)</option>
+                                <option value="pro_monthly">Pro Monthly</option>
+                                <option value="pro_yearly">Pro Yearly</option>
+                                <option value="org_monthly">Organization Monthly</option>
+                                <option value="org_yearly">Organization Yearly</option>
+                                <option value="credits_500">Credits 500 pack</option>
+                                <option value="credits_1000">Credits 1000 pack</option>
+                                <option value="agent_hosting_basic">Basic Agent Hosting</option>
+                            </datalist>
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Name</label>
@@ -175,22 +282,41 @@ export const AdminPlans: React.FC = () => {
                             </select>
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount (₹)</label>
+                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Currency</label>
+                            <select
+                                className="w-full bg-background border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                value={editingPlan?.currency || newPlan.currency}
+                                onChange={e => showCreate ? setNewPlan({ ...newPlan, currency: e.target.value }) : setEditingPlan({ ...editingPlan!, currency: e.target.value })}
+                            >
+                                <option value="INR">INR (₹)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                                <option value="GBP">GBP (£)</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount</label>
                             <input
                                 type="number"
                                 className="w-full bg-background border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                                value={editingPlan?.amount || newPlan.amount}
-                                onChange={e => showCreate ? setNewPlan({ ...newPlan, amount: parseFloat(e.target.value) }) : setEditingPlan({ ...editingPlan!, amount: parseFloat(e.target.value) })}
+                                value={editingPlan ? (isNaN(editingPlan.amount) ? '' : editingPlan.amount) : (isNaN(newPlan.amount!) ? '' : newPlan.amount!)}
+                                onChange={e => {
+                                    const val = parseFloat(e.target.value)
+                                    showCreate ? setNewPlan({ ...newPlan, amount: isNaN(val) ? 0 : val }) : setEditingPlan({ ...editingPlan!, amount: isNaN(val) ? 0 : val })
+                                }}
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Original Price (₹) <span className="text-muted-foreground/50">(Optional)</span></label>
+                            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Original Price <span className="text-muted-foreground/50">(Optional)</span></label>
                             <input
                                 type="number"
                                 className="w-full bg-background border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
                                 placeholder="For discount display"
-                                value={editingPlan?.original_amount || newPlan.original_amount || ''}
-                                onChange={e => showCreate ? setNewPlan({ ...newPlan, original_amount: parseFloat(e.target.value) }) : setEditingPlan({ ...editingPlan!, original_amount: parseFloat(e.target.value) })}
+                                value={editingPlan ? (editingPlan.original_amount && !isNaN(editingPlan.original_amount) ? editingPlan.original_amount : '') : (newPlan.original_amount && !isNaN(newPlan.original_amount) ? newPlan.original_amount : '')}
+                                onChange={e => {
+                                    const val = parseFloat(e.target.value)
+                                    showCreate ? setNewPlan({ ...newPlan, original_amount: isNaN(val) ? 0 : val }) : setEditingPlan({ ...editingPlan!, original_amount: isNaN(val) ? 0 : val })
+                                }}
                             />
                         </div>
                         <div className="space-y-1">
@@ -258,11 +384,11 @@ export const AdminPlans: React.FC = () => {
                             <div className="mb-6">
                                 <div className="flex items-baseline space-x-2">
                                     <span className="text-3xl font-black">
-                                        ₹{plan.amount}
+                                        {formatCurrency(plan.amount, plan.currency)}
                                     </span>
                                     {plan.original_amount && plan.original_amount > plan.amount && (
                                         <span className="text-lg font-bold text-muted-foreground line-through decoration-destructive/50">
-                                            ₹{plan.original_amount}
+                                            {formatCurrency(plan.original_amount, plan.currency)}
                                         </span>
                                     )}
                                 </div>
